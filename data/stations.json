@@ -1,0 +1,60 @@
+{
+  "notice": "Made-up readings for teaching. Not real measurements. Do not use for safety decisions.",
+  "stations": [
+    {
+      "id": "st-ladprao-01",
+      "districtId": "lat-phrao",
+      "nameTh": "คลองลาดพร้าว (ตัวอย่าง)",
+      "readings": [
+        { "at": "2026-09-30T09:00:00Z", "levelCm": 82 },
+        { "at": "2026-09-30T10:00:00Z", "levelCm": 88 },
+        { "at": "2026-09-30T11:00:00Z", "levelCm": 97 },
+        { "at": "2026-09-30T12:00:00Z", "levelCm": 104 }
+      ]
+    },
+    {
+      "id": "st-chatuchak-01",
+      "districtId": "chatuchak",
+      "nameTh": "คลองบางซื่อ (ตัวอย่าง)",
+      "readings": [
+        { "at": "2026-09-30T09:00:00Z", "levelCm": 61 },
+        { "at": "2026-09-30T10:00:00Z", "levelCm": 63 },
+        { "at": "2026-09-30T11:00:00Z", "levelCm": 64 },
+        { "at": "2026-09-30T12:00:00Z", "levelCm": 64 }
+      ]
+    },
+    {
+      "id": "st-dindaeng-01",
+      "districtId": "din-daeng",
+      "nameTh": "คลองสามเสน (ตัวอย่าง)",
+      "readings": [
+        { "at": "2026-09-30T09:00:00Z", "levelCm": 70 },
+        { "at": "2026-09-30T10:00:00Z", "levelCm": 72 },
+        { "at": "2026-09-30T11:00:00Z", "levelCm": 79 },
+        { "at": "2026-09-30T12:00:00Z", "levelCm": 85 }
+      ]
+    },
+    {
+      "id": "st-bangkapi-01",
+      "districtId": "bang-kapi",
+      "nameTh": "คลองแสนแสบ (ตัวอย่าง)",
+      "readings": [
+        { "at": "2026-09-30T09:00:00Z", "levelCm": 90 },
+        { "at": "2026-09-30T10:00:00Z", "levelCm": 91 },
+        { "at": "2026-09-30T11:00:00Z", "levelCm": 93 },
+        { "at": "2026-09-30T12:00:00Z", "levelCm": 92 }
+      ]
+    },
+    {
+      "id": "st-latkrabang-01",
+      "districtId": "lat-krabang",
+      "nameTh": "คลองประเวศบุรีรมย์ (ตัวอย่าง)",
+      "readings": [
+        { "at": "2026-09-30T09:00:00Z", "levelCm": 55 },
+        { "at": "2026-09-30T10:00:00Z", "levelCm": 58 },
+        { "at": "2026-09-30T11:00:00Z", "levelCm": 60 },
+        { "at": "2026-09-30T12:00:00Z", "levelCm": 61 }
+      ]
+    }
+  ]
+}

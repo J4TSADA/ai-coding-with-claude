@@ -1,0 +1,21 @@
+{
+  "name": "ai-coding-with-claude",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "น้ำท่วมไหม: teaching example for the AI Coding with Claude course (CodePassion Academy). Not an official flood warning service.",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.2"
+  }
+}
