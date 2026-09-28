@@ -1,5 +1,5 @@
 import { districts } from "./districts.ts"
-import { ReportStore, SEVERITY_LABELS, type Report } from "./reports.ts"
+import { ReportStore, SEVERITY_LABELS, validateReport, type Report } from "./reports.ts"
 import { latestReading, stationsIn } from "./stations.ts"
 import { toBangkokIso } from "./time.ts"
 
@@ -40,9 +40,9 @@ export function createApp(store = new ReportStore()) {
     }
 
     if (method === "POST" && path === "/reports") {
-      const input = parseReport(body)
-      if (!input) return { status: 400, body: { error: "expected { districtId, landmark, depthCm, seenAt, phone? }" } }
-      const { report, merged } = store.submit(input, ctx.now)
+      const v = validateReport(body, ctx.now)
+      if (!v.ok) return { status: 400, body: { error: v.error } }
+      const { report, merged } = store.submit(v.input, ctx.now)
       return { status: merged ? 200 : 201, body: { notice: REPORT_NOTICE, merged, report: publicReport(report) } }
     }
 
@@ -64,20 +64,5 @@ function publicReport(r: Report) {
     seenAt: toBangkokIso(r.seenAt),
     lastConfirmedAt: toBangkokIso(r.lastConfirmedAt),
     confirmations: r.confirmations
-  }
-}
-
-function parseReport(body: unknown) {
-  if (typeof body !== "object" || body === null) return undefined
-  const b = body as Record<string, unknown>
-  if (typeof b.districtId !== "string" || typeof b.landmark !== "string") return undefined
-  if (typeof b.depthCm !== "number" || typeof b.seenAt !== "string") return undefined
-  if (b.phone !== undefined && typeof b.phone !== "string") return undefined
-  return {
-    districtId: b.districtId,
-    landmark: b.landmark,
-    depthCm: b.depthCm,
-    seenAt: new Date(b.seenAt),
-    ...(b.phone ? { phone: b.phone } : {})
   }
 }

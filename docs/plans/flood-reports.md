@@ -10,7 +10,7 @@
 - [x] 2. ระดับความรุนแรงจากความลึก
   - Files: `src/reports.ts`
   - Test first: severity levels 1–4 from depth (RPT-REQ-002)
-- [ ] 3. ตรวจข้อมูล รวมรายงานซ้ำ และรายงานหมดอายุ
+- [x] 3. ตรวจข้อมูล รวมรายงานซ้ำ และรายงานหมดอายุ
   - Files: `src/reports.ts`, `src/app.ts`
   - Test first: severity boundaries 10/11, 30/31, 50/51 (RPT-REQ-002) · invalid input gives 400 (RPT-REQ-003) · same spot within 2 h merges, just over 2 h does not (RPT-REQ-004) · expired after 6 h (RPT-REQ-005)
 - [ ] 4. จำกัดจำนวนรายงาน และเบอร์โทรไม่หลุด
@@ -25,3 +25,5 @@
 ## Decisions made while building
 
 <!-- Append as you go: what changed from the plan, and why. -->
+
+- Step 3: `validateReport` replaced the loose body check in `src/app.ts`; invalid input now returns the specific reason with 400.
