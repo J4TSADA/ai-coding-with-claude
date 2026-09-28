@@ -94,7 +94,6 @@ export class ReportStore {
 
   /** Add a report, or confirm an existing one for the same spot (RPT-REQ-004). */
   submit(input: ReportInput, now: Date): { report: Report; merged: boolean } {
-    console.log("new report", input)
     const key = landmarkKey(input.landmark)
     const existing = this.reports.find(
       (r) =>

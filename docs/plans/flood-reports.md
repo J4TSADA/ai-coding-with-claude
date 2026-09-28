@@ -13,7 +13,7 @@
 - [x] 3. ตรวจข้อมูล รวมรายงานซ้ำ และรายงานหมดอายุ
   - Files: `src/reports.ts`, `src/app.ts`
   - Test first: severity boundaries 10/11, 30/31, 50/51 (RPT-REQ-002) · invalid input gives 400 (RPT-REQ-003) · same spot within 2 h merges, just over 2 h does not (RPT-REQ-004) · expired after 6 h (RPT-REQ-005)
-- [ ] 4. จำกัดจำนวนรายงาน และเบอร์โทรไม่หลุด
+- [x] 4. จำกัดจำนวนรายงาน และเบอร์โทรไม่หลุด
   - Files: `src/rate-limit.ts` (ใหม่), `src/app.ts`, `src/server.ts`
   - Test first: 6th report in 10 min from one IP gives 429 (RPT-REQ-007) · phone never in any response or log (RPT-REQ-008)
 
@@ -27,3 +27,4 @@
 <!-- Append as you go: what changed from the plan, and why. -->
 
 - Step 3: `validateReport` replaced the loose body check in `src/app.ts`; invalid input now returns the specific reason with 400.
+- Step 4: the REVIEW.md security pass found `ReportStore.submit` logging the whole input, phone included. Replaced with an ID-only log line in `src/app.ts`.

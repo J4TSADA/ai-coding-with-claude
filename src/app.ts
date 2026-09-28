@@ -1,17 +1,18 @@
 import { districts } from "./districts.ts"
+import { RateLimiter } from "./rate-limit.ts"
 import { ReportStore, SEVERITY_LABELS, validateReport, type Report } from "./reports.ts"
 import { latestReading, stationsIn } from "./stations.ts"
 import { toBangkokIso } from "./time.ts"
 
 export type Response = { status: number; body: unknown }
 
-export type Context = { now: Date }
+export type Context = { now: Date; ip?: string }
 
 export const NOTICE = "ตัวอย่างเพื่อการเรียนเท่านั้น ไม่ใช่ประกาศเตือนภัยทางการ ข้อมูลเป็นข้อมูลสมมติ"
 export const REPORT_NOTICE = "รายงานจากผู้ใช้ ไม่ใช่ประกาศเตือนภัยทางการ ตรวจสอบกับประกาศของกรุงเทพมหานครก่อนตัดสินใจ"
 
 /** Build a request handler. Kept free of node:http so it is easy to test. */
-export function createApp(store = new ReportStore()) {
+export function createApp(store = new ReportStore(), limiter = new RateLimiter()) {
   return function handle(method: string, path: string, body: unknown, ctx: Context = { now: new Date() }): Response {
     if (method === "GET" && path === "/districts") {
       return { status: 200, body: { notice: NOTICE, districts: [...districts.values()] } }
@@ -40,9 +41,11 @@ export function createApp(store = new ReportStore()) {
     }
 
     if (method === "POST" && path === "/reports") {
+      if (!limiter.allow(ctx.ip ?? "unknown", ctx.now)) return { status: 429, body: { error: "too many reports, try again later" } }
       const v = validateReport(body, ctx.now)
       if (!v.ok) return { status: 400, body: { error: v.error } }
       const { report, merged } = store.submit(v.input, ctx.now)
+      console.log("report", report.id, merged ? "confirmed" : "new", report.districtId)
       return { status: merged ? 200 : 201, body: { notice: REPORT_NOTICE, merged, report: publicReport(report) } }
     }
 
