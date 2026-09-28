@@ -4,10 +4,10 @@
 
 ## Steps
 
-- [ ] 1. Tracer bullet: ส่งรายงานผ่าน API แล้วเห็นในรายการของเขต
+- [x] 1. Tracer bullet: ส่งรายงานผ่าน API แล้วเห็นในรายการของเขต
   - Files: `src/reports.ts` (ใหม่), `src/app.ts`
   - Test first: POST /reports returns 201 (RPT-REQ-001) · GET /districts/:id/reports lists it with a notice (RPT-REQ-006, RPT-REQ-009)
-- [ ] 2. ระดับความรุนแรงจากความลึก
+- [x] 2. ระดับความรุนแรงจากความลึก
   - Files: `src/reports.ts`
   - Test first: severity levels 1–4 from depth (RPT-REQ-002)
 - [ ] 3. ตรวจข้อมูล รวมรายงานซ้ำ และรายงานหมดอายุ

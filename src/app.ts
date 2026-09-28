@@ -1,4 +1,5 @@
 import { districts } from "./districts.ts"
+import { ReportStore, SEVERITY_LABELS, type Report } from "./reports.ts"
 import { latestReading, stationsIn } from "./stations.ts"
 import { toBangkokIso } from "./time.ts"
 
@@ -7,27 +8,76 @@ export type Response = { status: number; body: unknown }
 export type Context = { now: Date }
 
 export const NOTICE = "ตัวอย่างเพื่อการเรียนเท่านั้น ไม่ใช่ประกาศเตือนภัยทางการ ข้อมูลเป็นข้อมูลสมมติ"
+export const REPORT_NOTICE = "รายงานจากผู้ใช้ ไม่ใช่ประกาศเตือนภัยทางการ ตรวจสอบกับประกาศของกรุงเทพมหานครก่อนตัดสินใจ"
 
-/** Route one request. Kept free of node:http so it is easy to test. */
-export function handle(method: string, path: string, _body: unknown, ctx: Context = { now: new Date() }): Response {
-  if (method === "GET" && path === "/districts") {
-    return { status: 200, body: { notice: NOTICE, districts: [...districts.values()] } }
+/** Build a request handler. Kept free of node:http so it is easy to test. */
+export function createApp(store = new ReportStore()) {
+  return function handle(method: string, path: string, body: unknown, ctx: Context = { now: new Date() }): Response {
+    if (method === "GET" && path === "/districts") {
+      return { status: 200, body: { notice: NOTICE, districts: [...districts.values()] } }
+    }
+
+    const reportsMatch = path.match(/^\/districts\/([a-z-]+)\/reports$/)
+    if (method === "GET" && reportsMatch) {
+      const district = districts.get(reportsMatch[1] ?? "")
+      if (!district) return { status: 404, body: { error: "unknown district" } }
+      return { status: 200, body: { notice: REPORT_NOTICE, district, reports: store.active(district.id, ctx.now).map(publicReport) } }
+    }
+
+    const districtMatch = path.match(/^\/districts\/([a-z-]+)$/)
+    if (method === "GET" && districtMatch) {
+      const district = districts.get(districtMatch[1] ?? "")
+      if (!district) return { status: 404, body: { error: "unknown district" } }
+      const stations = stationsIn(district.id).map((s) => {
+        const latest = latestReading(s, ctx.now)
+        return {
+          id: s.id,
+          nameTh: s.nameTh,
+          latest: latest ? { at: toBangkokIso(latest.at), levelCm: latest.levelCm } : null
+        }
+      })
+      return { status: 200, body: { notice: NOTICE, district, stations } }
+    }
+
+    if (method === "POST" && path === "/reports") {
+      const input = parseReport(body)
+      if (!input) return { status: 400, body: { error: "expected { districtId, landmark, depthCm, seenAt, phone? }" } }
+      const { report, merged } = store.submit(input, ctx.now)
+      return { status: merged ? 200 : 201, body: { notice: REPORT_NOTICE, merged, report: publicReport(report) } }
+    }
+
+    return { status: 404, body: { error: "not found" } }
   }
+}
 
-  const districtMatch = path.match(/^\/districts\/([a-z-]+)$/)
-  if (method === "GET" && districtMatch) {
-    const district = districts.get(districtMatch[1] ?? "")
-    if (!district) return { status: 404, body: { error: "unknown district" } }
-    const stations = stationsIn(district.id).map((s) => {
-      const latest = latestReading(s, ctx.now)
-      return {
-        id: s.id,
-        nameTh: s.nameTh,
-        latest: latest ? { at: toBangkokIso(latest.at), levelCm: latest.levelCm } : null
-      }
-    })
-    return { status: 200, body: { notice: NOTICE, district, stations } }
+export const handle = createApp()
+
+/** What the public may see. Never includes the reporter's phone. */
+function publicReport(r: Report) {
+  return {
+    id: r.id,
+    districtId: r.districtId,
+    landmark: r.landmark,
+    depthCm: r.depthCm,
+    severity: r.severity,
+    severityLabel: SEVERITY_LABELS[r.severity],
+    seenAt: toBangkokIso(r.seenAt),
+    lastConfirmedAt: toBangkokIso(r.lastConfirmedAt),
+    confirmations: r.confirmations
   }
+}
 
-  return { status: 404, body: { error: "not found" } }
+function parseReport(body: unknown) {
+  if (typeof body !== "object" || body === null) return undefined
+  const b = body as Record<string, unknown>
+  if (typeof b.districtId !== "string" || typeof b.landmark !== "string") return undefined
+  if (typeof b.depthCm !== "number" || typeof b.seenAt !== "string") return undefined
+  if (b.phone !== undefined && typeof b.phone !== "string") return undefined
+  return {
+    districtId: b.districtId,
+    landmark: b.landmark,
+    depthCm: b.depthCm,
+    seenAt: new Date(b.seenAt),
+    ...(b.phone ? { phone: b.phone } : {})
+  }
 }
