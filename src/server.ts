@@ -17,7 +17,7 @@ createServer((req, res) => {
       }
     }
     const path = new URL(req.url ?? "/", "http://x").pathname
-    const { status, body: out } = handle(req.method ?? "GET", path, body, { now: new Date() })
+    const { status, body: out } = handle(req.method ?? "GET", path, body, { now: new Date(), ip: req.socket.remoteAddress })
     res.writeHead(status, { "content-type": "application/json; charset=utf-8" }).end(JSON.stringify(out))
   })
 }).listen(port, () => console.log(`น้ำท่วมไหม listening on http://localhost:${port}`))

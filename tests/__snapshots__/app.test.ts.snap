@@ -1,0 +1,69 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`RPT-REQ-020 existing endpoints do not change > GET /districts body is unchanged 1`] = `
+{
+  "districts": [
+    {
+      "id": "bang-kapi",
+      "nameEn": "Bang Kapi",
+      "nameTh": "บางกะปิ",
+    },
+    {
+      "id": "bang-khen",
+      "nameEn": "Bang Khen",
+      "nameTh": "บางเขน",
+    },
+    {
+      "id": "bang-na",
+      "nameEn": "Bang Na",
+      "nameTh": "บางนา",
+    },
+    {
+      "id": "chatuchak",
+      "nameEn": "Chatuchak",
+      "nameTh": "จตุจักร",
+    },
+    {
+      "id": "din-daeng",
+      "nameEn": "Din Daeng",
+      "nameTh": "ดินแดง",
+    },
+    {
+      "id": "don-mueang",
+      "nameEn": "Don Mueang",
+      "nameTh": "ดอนเมือง",
+    },
+    {
+      "id": "huai-khwang",
+      "nameEn": "Huai Khwang",
+      "nameTh": "ห้วยขวาง",
+    },
+    {
+      "id": "khlong-toei",
+      "nameEn": "Khlong Toei",
+      "nameTh": "คลองเตย",
+    },
+    {
+      "id": "lat-krabang",
+      "nameEn": "Lat Krabang",
+      "nameTh": "ลาดกระบัง",
+    },
+    {
+      "id": "lat-phrao",
+      "nameEn": "Lat Phrao",
+      "nameTh": "ลาดพร้าว",
+    },
+    {
+      "id": "pathum-wan",
+      "nameEn": "Pathum Wan",
+      "nameTh": "ปทุมวัน",
+    },
+    {
+      "id": "sai-mai",
+      "nameEn": "Sai Mai",
+      "nameTh": "สายไหม",
+    },
+  ],
+  "notice": "ตัวอย่างเพื่อการเรียนเท่านั้น ไม่ใช่ประกาศเตือนภัยทางการ ข้อมูลเป็นข้อมูลสมมติ",
+}
+`;
