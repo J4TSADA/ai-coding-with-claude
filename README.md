@@ -61,7 +61,7 @@ curl localhost:3000/districts/lat-phrao
 | `cp5-loop` | รับรายงานผ่าน API และคำนวณระดับความรุนแรง | W5 |
 | `cp6-tdd` | ตรวจข้อมูล รวมรายงานซ้ำ และรายงานหมดอายุ | W6 |
 | `cp7-review` | `REVIEW.md` จำกัดจำนวนรายงาน และปิดเบอร์โทรที่หลุดลง log | W7 |
-| `cp8-hooks` | hook กันไม่ให้ Claude แก้ไฟล์ test | W8 |
+| `cp8-hooks` | hook กันไม่ให้ Claude แก้ไฟล์ test และกันการส่งข้อมูลไปที่ระบบรายงานน้ำท่วมจริง | W8 |
 
 ```bash
 git fetch --tags
