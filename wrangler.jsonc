@@ -3,5 +3,7 @@
   "name": "namtuam-mai-demo",
   "main": "src/worker.ts",
   "compatibility_date": "2026-10-01",
-  "workers_dev": true
+  "workers_dev": true,
+  // The map page. Files here are served first; other paths (the API) reach src/worker.ts.
+  "assets": { "directory": "./public" }
 }

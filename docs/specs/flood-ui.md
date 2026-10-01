@@ -1,141 +1,216 @@
-# Spec: หน้าเว็บดูรายงานน้ำท่วม (demo บน Cloudflare Workers)
+# Spec: หน้าแผนที่น้ำท่วม (demo บน Cloudflare Workers)
 
-> สถานะ: ร่าง (2026-10-01) รอเจ้าของฟีเจอร์ยืนยัน
+> สถานะ: ร่างรอบ 2 (2026-10-01) เปลี่ยนจากหน้าแบบรายการเป็นแผนที่ รอเจ้าของฟีเจอร์ยืนยัน
 > ต่อจาก: [`docs/specs/flood-reports.md`](flood-reports.md) (หัวข้อ Out of scope ที่บอกว่า "หน้าเว็บ/ฟอร์ม (รอบนี้มีแค่ API)")
-> ข้อบังคับ: ทุกข้อใน skill `security-baseline` (`.claude/skills/security-baseline/SKILL.md`)
+> ข้อบังคับ: ทุกข้อใน skill `security-baseline` และ [ADR 0001](../adr/0001-maplibre-pmtiles-basemap.md) (host ไฟล์แผนที่ทุกอย่างเอง)
 >
 > การตัดสินใจจากเจ้าของฟีเจอร์ (2026-10-01)
-> - หน้าเว็บมี**เฉพาะบน worker** (`src/worker.ts`) `npm run dev` (`src/server.ts`) ไม่เปลี่ยน
-> - `GET /` เปลี่ยนจาก JSON เป็นหน้า HTML รายการ endpoint ย้ายไปที่ `GET /api`
+> - หน้าเว็บมี**เฉพาะบน worker demo** `npm run dev` (`src/server.ts`) ไม่เปลี่ยน
+> - `GET /` เป็นหน้าเว็บ รายการ endpoint อยู่ที่ `GET /api`
+> - หน้าเว็บเป็น**แผนที่** ดัดแปลงจาก upstream `feat/fm-01` ถึง `fm-04` (MapLibre GL + PMTiles host เอง)
+> - รอบนี้**ไม่มีไฟล์แผนที่พื้นหลัง** (`bangkok.pmtiles`) หมุดอยู่บนพื้นเรียบ เพิ่มไฟล์ทีหลังได้โดยไม่ต้องแก้โค้ด
 
 ## คำศัพท์
 
 | คำ | ความหมาย |
 | --- | --- |
-| **หน้าเว็บ** | HTML ที่ `GET /` ของ worker ส่ง พร้อม `/app.css` และ `/app.js` |
-| **asset** | `/app.css` และ `/app.js` ข้อความคงที่ที่ worker ส่งเอง ไม่โหลดอะไรจากโดเมนอื่น |
+| **หน้าเว็บ** | ไฟล์ใน `public/` ที่ Workers Static Assets เสิร์ฟก่อนถึง `src/worker.ts` |
+| **กึ่งกลางเขต** | `[lon, lat]` โดยประมาณของเขต ใช้วางหมุด ไม่ใช่ตำแหน่งของผู้รายงาน |
+| **หมุด** | จุดบนแผนที่ รายงานวางรอบกึ่งกลางเขตแบบคงที่ตามจุดสังเกต สถานีวางที่กึ่งกลางเขต |
 | **ข้อความจากผู้ใช้** | ค่าที่มาจากรายงาน เช่น `landmark` ต้องแสดงเป็นข้อความเสมอ ห้ามตีความเป็น HTML |
-
-test ของฟีเจอร์นี้เรียก `worker.fetch(new Request("https://demo.example/..."))` ตรงๆ เหมือน `tests/worker.test.ts` ไม่เปิด server ไม่เรียกโดเมนจริง
 
 ---
 
 ## Requirements
 
-### UI-REQ-001 `GET /` ได้หน้า HTML
+### UI-REQ-001 `GET /` ได้หน้าแผนที่
 
-- [ ] `GET /` ได้ `200` และ `content-type` เป็น `text/html; charset=utf-8`
-- [ ] HTML มี `<html lang="th">`, `<meta charset="utf-8">`, `<meta name="viewport" ...>` และ `<title>น้ำท่วมไหม</title>`
-- [ ] HTML โหลดเฉพาะ `/app.css` และ `/app.js` (ไม่มี `http://` หรือ `https://` ใน `src=` หรือ `href=`)
+- [ ] `wrangler.jsonc` มี `assets.directory` เป็น `./public` และ `public/index.html` มีอยู่
+- [ ] `index.html` มี `<html lang="th">`, `<meta charset="utf-8">`, viewport และ `<title>น้ำท่วมไหม</title>`
+- [ ] หน้าเว็บมีแผนที่ (`#map`), แผงสรุปจำนวนจุดตามระดับความรุนแรง, ปุ่มกรองตามเขต และรายการรายงาน
 
-### UI-REQ-002 รายการ endpoint ย้ายไป `GET /api`
+### UI-REQ-002 endpoint ของ demo
 
-- [ ] `GET /api` ได้ `200` JSON `{ notice: NOTICE, endpoints: [...] }` รายการเดิม และมี `"/districts/chatuchak/reports"`
-- [ ] `GET /` ไม่ใช่ JSON อีกต่อไป
+- [ ] `GET /api` ได้ `{ notice: NOTICE, endpoints: [...] }` มี `"/api/centres"` และ `"/districts/chatuchak/reports"`
+- [ ] `GET /api/centres` ได้ `{ notice: NOTICE, centres }` มีครบทุก id ใน `districts` แต่ละค่าเป็น `[lon, lat]` อยู่ในกรอบกรุงเทพฯ (lon 100.3–100.95, lat 13.5–14.05)
+- [ ] กึ่งกลางเขตอยู่ใน `src/district-centres.ts` ไม่แก้ `src/districts.ts`
 
 ### UI-REQ-003 ประกาศว่าไม่ใช่ข้อมูลทางการแสดงเสมอ
 
-- [ ] HTML ของ `GET /` มีข้อความ `NOTICE` ตรงตัว (ไม่ต้องรอ JavaScript)
-- [ ] HTML ของ `GET /` มีข้อความ `REPORT_NOTICE` ตรงตัว อยู่เหนือรายการรายงาน
-- [ ] ทุกรายงานที่หน้าเว็บแสดงมีป้าย "ผู้ใช้รายงาน" (ข้อความจาก `disclaimer` ของรายงานนั้น)
+- [ ] `index.html` มีข้อความ `NOTICE` และ `REPORT_NOTICE` ตรงตัว (เห็นได้โดยไม่ต้องรอ JavaScript)
+- [ ] ทุกรายงานในรายการแสดง `disclaimer` ของรายงานนั้น และ popup ของหมุดรายงานขึ้นต้นด้วย `disclaimer`
+- [ ] popup ของหมุดรายงานบอก "ตำแหน่งโดยประมาณ" ส่วนสถานีบอก "ข้อมูลสมมติ"
 
-### UI-REQ-004 เลือกเขตแล้วเห็นข้อมูลของเขตนั้น
+### UI-REQ-004 แสดงรายงานตามความรุนแรง
 
-หน้าเว็บเรียก API เดิมด้วย `fetch` แบบ GET เท่านั้น
-
-- [ ] มีตัวเลือกเขต (`<select>`) ครบ 12 เขตจาก `GET /districts` แสดง `nameTh`
-- [ ] เลือกเขตแล้วเรียก `GET /districts/:id` แสดงสถานีวัดน้ำ (ชื่อ, ระดับน้ำ ซม., เวลา) และรายงาน
-- [ ] รายงานแต่ละรายการแสดง: จุดสังเกต, ความลึก (ซม. จำนวนเต็มตามที่ API ส่ง), `severity.labelTh`, เวลา `seenAt` ตามที่ API ส่ง (+07:00 แสดงเป็น HH:MM น.), จำนวนคนยืนยัน (`confirmations`)
-- [ ] ระดับความรุนแรงมีสีต่างกันตาม `severity.level` และมีข้อความกำกับเสมอ (ไม่สื่อด้วยสีอย่างเดียว)
-- [ ] เขตที่ไม่มีรายงานแสดง "ยังไม่มีรายงานในเขตนี้"
-- [ ] เรียก API ไม่สำเร็จแสดง "โหลดข้อมูลไม่สำเร็จ ลองใหม่อีกครั้ง" ไม่แสดง error ดิบ
-- [ ] เขตที่เลือกอยู่ใน URL (`/?district=chatuchak`) เปิดลิงก์แล้วได้เขตเดิม ค่าที่ไม่ใช่ id ใน `/districts` ถูกเมิน
+- [ ] ระดับความรุนแรงใช้ id และป้ายจาก API (`severity.level`, `severity.labelTh`) 4 ระดับตาม RPT-REQ-009
+- [ ] รายการเรียงจากรุนแรงมากไปน้อย ระดับเท่ากันเรียงตาม `seenAt` ใหม่ไปเก่า แล้วตาม `id`
+- [ ] แผงสรุปนับจำนวนจุดต่อระดับ ตามเขตที่กรองอยู่
+- [ ] สีของระดับมีข้อความกำกับเสมอ (ไม่สื่อด้วยสีอย่างเดียว)
+- [ ] รายงานแสดงความลึกเป็น ซม. จำนวนเต็มตามที่ API ส่ง และเวลา HH:MM น. จาก `seenAt` (+07:00)
+- [ ] โหลดข้อมูลไม่สำเร็จแสดง "โหลดข้อมูลไม่สำเร็จ ลองใหม่อีกครั้ง" ไม่แสดง error ดิบ
+- [ ] ไม่มีไฟล์แผนที่พื้นหลังหรือโหลด MapLibre ไม่ได้ หน้าเว็บยังใช้งานได้และบอกสถานะ
 
 ### UI-REQ-005 ข้อความจากผู้ใช้แสดงเป็นข้อความเท่านั้น
 
-- [ ] `app.js` ใส่ข้อมูลจาก API ด้วย `textContent` หรือ `document.createElement` เท่านั้น
-- [ ] `app.js` ไม่มี `innerHTML`, `outerHTML`, `insertAdjacentHTML`, `document.write` หรือ `eval` (test ตรวจข้อความใน asset)
+- [ ] `app.js` และ `logic.js` ไม่มี `innerHTML`, `outerHTML`, `insertAdjacentHTML`, `document.write` หรือ `eval(`
+- [ ] ข้อมูลจาก API เข้าหน้าเว็บผ่าน `textContent` / `createElement` และ popup ใช้ `setDOMContent` ไม่ใช้ `setHTML`
 
-### UI-REQ-006 header ความปลอดภัย
+### UI-REQ-006 ไม่โหลดอะไรจากเว็บอื่น และมี header ความปลอดภัย
 
-- [ ] `GET /`, `/app.css`, `/app.js` มี `x-content-type-options: nosniff`
-- [ ] `GET /` มี `content-security-policy: default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`
-- [ ] `/app.css` ได้ `text/css; charset=utf-8` และ `/app.js` ได้ `text/javascript; charset=utf-8`
+- [ ] `index.html`, `app.js`, `logic.js`, `app.css` ไม่มี URL ภายนอก ยกเว้นที่ไม่ได้โหลด: SVG namespace และลิงก์ attribution ของ OpenStreetMap / Protomaps
+- [ ] ไฟล์ใน `public/vendor/` ตรงกับ `public/vendor/SHA256SUMS`
+- [ ] `public/_headers` ใส่ `X-Content-Type-Options: nosniff` และ `Content-Security-Policy` ที่มี `script-src 'self'`, `connect-src 'self'`, `form-action 'none'`, `frame-ancestors 'none'` ให้ทุก path
 
 ### UI-REQ-007 demo ยังอ่านอย่างเดียว
 
 - [ ] หน้าเว็บไม่มี `<form>` และ `app.js` ไม่ส่ง method อื่นนอกจาก GET
-- [ ] `POST` ทุก path ยังได้ `405` เหมือนเดิม (test เดิม "refuses writes")
-- [ ] path ที่ไม่รู้จักยังได้ `404` JSON เหมือนเดิม
+- [ ] `POST` ที่ worker ยังได้ `405` และ path ที่ไม่รู้จักยังได้ `404` JSON
 
 ---
 
 ## Design
 
-- `src/page.ts` (ใหม่): export `PAGE_HTML`, `APP_CSS`, `APP_JS` เป็น string คงที่ `PAGE_HTML` สร้างจาก `NOTICE` และ `REPORT_NOTICE` ที่ import มา (ไม่พิมพ์ข้อความซ้ำ)
-- `src/worker.ts`: เพิ่ม route `/` (HTML), `/app.css`, `/app.js`, `/api` (JSON เดิม) และ header ตาม UI-REQ-006
-- ไม่แก้ `src/app.ts`, `src/reports.ts`, `src/server.ts`, `NOTICE` และไฟล์ที่ CLAUDE.md ห้ามแตะ
-- ไม่เพิ่ม dependency ไม่ใช้ framework ไม่ใช้ฟอนต์หรือ CDN ภายนอก
-- รองรับจอมือถือ (กว้าง 360px) และ dark mode ผ่าน `prefers-color-scheme`
+- `public/`: `index.html`, `app.js` (DOM + แผนที่), `logic.js` (ไม่มี DOM, test ได้), `app.css`, `_headers`, ฟอนต์ Noto Sans Thai และ `vendor/` (MapLibre, pmtiles, basemaps, glyphs, sprites) จาก upstream ตาม ADR 0001
+- glyphs บนดิสก์ชื่อ `noto-sans-regular` แต่ MapLibre ขอ `Noto%20Sans%20Regular` จึงแปลง URL ใน `transformRequest` ของ `app.js`
+- `src/worker.ts`: เพิ่ม `/api/centres` ส่วนหน้าเว็บไม่ผ่าน worker แล้ว (ลบ `src/page.ts`)
+- ไฟล์แผนที่พื้นหลังวางที่ `public/tiles/bangkok.pmtiles` (อยู่ใน `.gitignore`) วิธีสร้างดู ADR 0001 ไฟล์ใหญ่กว่า 25 MiB จะ deploy เป็น static asset ไม่ได้ ต้องใช้ R2
+- ไม่เพิ่ม dependency ใน `package.json` ไม่แก้ `src/app.ts`, `src/reports.ts`, `src/server.ts`, `src/districts.ts` และ `NOTICE`
 
 ## ร่าง test (เจ้าของฟีเจอร์เป็นคนวางใน `tests/worker.test.ts`)
 
-hook `guard-tests.sh` ห้าม Claude แก้ไฟล์ test ร่างนี้ให้คนก๊อปไปวาง และแก้ test เดิม "lists the endpoints at the root" ให้ใช้ `/api`
+hook `guard-tests.sh` ห้าม Claude แก้ไฟล์ test ให้**แทน** `describe("web page", ...)` เดิมทั้งก้อน (และ `const text = ...` เหนือมัน) ด้วยโค้ดนี้ แล้วเพิ่ม import ด้านบนของไฟล์
 
 ```ts
-import { NOTICE } from "../src/app.ts"
-import { REPORT_NOTICE } from "../src/reports.ts"
+// เพิ่มที่ด้านบนของไฟล์ (NOTICE กับ REPORT_NOTICE import อยู่แล้ว)
+import { createHash } from "node:crypto"
+import { readFileSync } from "node:fs"
+import { runInNewContext } from "node:vm"
+import { districts } from "../src/districts.ts"
+```
 
-const text = async (path: string) => (await get(path)).text()
+```ts
+const file = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url))
+const textOf = (path: string) => file(path).toString("utf8")
 
-describe("web page", () => {
+/** Outside URLs the page may mention because it never loads them. */
+const NOT_LOADED = new Set(["http://www.w3.org/2000/svg", "https://openstreetmap.org/copyright", "https://protomaps.com"])
+
+type Logic = {
+  bySeverity: (a: unknown, b: unknown) => number
+  countBySeverity: (reports: unknown[], filter: string) => Record<string, number>
+}
+const logic = (): Logic => {
+  const window: { NAMTUAM_LOGIC?: Logic } = {}
+  runInNewContext(textOf("public/logic.js"), { window })
+  return window.NAMTUAM_LOGIC as Logic
+}
+const report = (id: string, level: string, seenAt: string, districtId = "chatuchak") => ({ id, districtId, seenAt, severity: { level } })
+
+describe("map page", () => {
+  it("is served from public/ by Workers Static Assets", () => {
+    expect(textOf("wrangler.jsonc")).toMatch(/"assets":\s*\{\s*"directory":\s*"\.\/public"/)
+    const html = textOf("public/index.html")
+    expect(html).toContain('<html lang="th">')
+    expect(html).toContain('id="map"')
+  })
+
+  it("shows both notices without JavaScript", () => {
+    const html = textOf("public/index.html")
+    expect(html).toContain(NOTICE)
+    expect(html).toContain(REPORT_NOTICE)
+  })
+
   it("lists the endpoints at /api", async () => {
     const res = get("/api")
     expect(res.status).toBe(200)
-    expect(((await res.json()) as { endpoints: string[] }).endpoints).toContain("/districts/chatuchak/reports")
+    const { endpoints } = (await res.json()) as { endpoints: string[] }
+    expect(endpoints).toContain("/api/centres")
+    expect(endpoints).toContain("/districts/chatuchak/reports")
   })
 
-  it("serves HTML at the root with both notices", async () => {
-    const res = get("/")
+  it("gives a centre inside Bangkok for every district", async () => {
+    const res = get("/api/centres")
     expect(res.status).toBe(200)
-    expect(res.headers.get("content-type")).toBe("text/html; charset=utf-8")
-    const html = await res.text()
-    expect(html).toContain('<html lang="th">')
-    expect(html).toContain(NOTICE)
-    expect(html).toContain(REPORT_NOTICE)
-    expect(html).not.toMatch(/(src|href)="https?:/)
-    expect(html).not.toContain("<form")
-  })
-
-  it("sets security headers", () => {
-    const res = get("/")
-    expect(res.headers.get("content-security-policy")).toContain("script-src 'self'")
-    expect(res.headers.get("content-security-policy")).toContain("default-src 'none'")
-    for (const path of ["/", "/app.css", "/app.js"]) {
-      expect(get(path).headers.get("x-content-type-options")).toBe("nosniff")
+    const { notice, centres } = (await res.json()) as { notice: string; centres: Record<string, [number, number]> }
+    expect(notice).toBe(NOTICE)
+    expect(Object.keys(centres).sort()).toEqual([...districts.keys()].sort())
+    for (const [lon, lat] of Object.values(centres)) {
+      expect(lon).toBeGreaterThanOrEqual(100.3)
+      expect(lon).toBeLessThanOrEqual(100.95)
+      expect(lat).toBeGreaterThanOrEqual(13.5)
+      expect(lat).toBeLessThanOrEqual(14.05)
     }
   })
 
-  it("serves the assets with the right types", () => {
-    expect(get("/app.css").headers.get("content-type")).toBe("text/css; charset=utf-8")
-    expect(get("/app.js").headers.get("content-type")).toBe("text/javascript; charset=utf-8")
+  it("loads nothing from another site", () => {
+    for (const path of ["public/index.html", "public/app.js", "public/logic.js", "public/app.css"]) {
+      const urls = textOf(path).match(/https?:\/\/[^\s"'`)<>\\]+/g) ?? []
+      expect(urls.filter((url) => !NOT_LOADED.has(url)), path).toEqual([])
+    }
   })
 
-  it("never builds HTML from data in app.js", async () => {
-    const js = await text("/app.js")
-    for (const sink of ["innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval("]) {
-      expect(js).not.toContain(sink)
+  it("ships vendored map files that match SHA256SUMS", () => {
+    const lines = textOf("public/vendor/SHA256SUMS").trim().split("\n")
+    expect(lines.length).toBeGreaterThan(0)
+    for (const line of lines) {
+      const [hash, path] = line.trim().split(/\s+/)
+      expect(createHash("sha256").update(file(`public/vendor/${path}`)).digest("hex"), path).toBe(hash)
     }
-    expect(js).toContain("textContent")
-    expect(js).not.toMatch(/method:\s*["'](POST|PUT|PATCH|DELETE)/)
+  })
+
+  it("sets security headers for every path", () => {
+    const headers = textOf("public/_headers")
+    expect(headers).toMatch(/^\/\*$/m)
+    expect(headers).toContain("X-Content-Type-Options: nosniff")
+    for (const rule of ["script-src 'self'", "connect-src 'self'", "form-action 'none'", "frame-ancestors 'none'"]) {
+      expect(headers).toContain(rule)
+    }
+  })
+
+  it("never builds HTML from data and only reads", () => {
+    for (const path of ["public/app.js", "public/logic.js"]) {
+      const js = textOf(path)
+      for (const sink of ["innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval(", "setHTML"]) {
+        expect(js, `${path} ${sink}`).not.toContain(sink)
+      }
+      expect(js).not.toMatch(/method:\s*["'](POST|PUT|PATCH|DELETE)/)
+    }
+    expect(textOf("public/app.js")).toContain("textContent")
+    expect(textOf("public/index.html")).not.toContain("<form")
+  })
+
+  it("sorts reports deepest first, then newest, then id", () => {
+    const L = logic()
+    const list = [
+      report("b", "wet", "2026-09-30T19:00:00+07:00"),
+      report("c", "dangerous", "2026-09-30T18:00:00+07:00"),
+      report("a", "dangerous", "2026-09-30T18:00:00+07:00"),
+      report("d", "dangerous", "2026-09-30T19:00:00+07:00")
+    ].sort(L.bySeverity)
+    expect(list.map((r) => r.id)).toEqual(["d", "a", "c", "b"])
+  })
+
+  it("counts reports per severity for the chosen district", () => {
+    const L = logic()
+    const list = [report("a", "wet", "x"), report("b", "dangerous", "x"), report("c", "dangerous", "x", "lat-phrao")]
+    expect({ ...L.countBySeverity(list, "all") }).toEqual({ wet: 1, "hard-for-small-cars": 0, "unsafe-for-small-cars": 0, dangerous: 2 })
+    expect(L.countBySeverity(list, "chatuchak").dangerous).toBe(1)
+  })
+
+  it("keeps unknown paths a 404 and writes a 405", () => {
+    expect(get("/nope").status).toBe(404)
+    expect(get("/constructor").status).toBe(404)
+    expect(get("/api/centres", "POST").status).toBe(405)
   })
 })
 ```
 
 ## Out of scope (รอบนี้ไม่ทำ)
 
-- ฟอร์มส่งรายงาน (demo รับแค่ GET)
-- แผนที่, พิกัด, รูปภาพ
+- ไฟล์แผนที่พื้นหลัง `bangkok.pmtiles` และที่เก็บบน R2
+- ฟอร์มส่งรายงาน และโหมดข้อมูลจำลอง (`demo.js`) ของ upstream
+- พิกัดจริงของรายงาน
 - หน้าเว็บบน `npm run dev` (`src/server.ts`)
 - test การทำงานของ `app.js` ในเบราว์เซอร์จริง (ตรวจด้วยมือผ่าน `npx wrangler dev` บน localhost)
 - ดึงหรือส่งข้อมูลกับ Flood Watch จริงทุกรูปแบบ

@@ -7,3 +7,5 @@ CLAUDE.local.md
 .agents/
 .claude/*
 !.claude/skills/
+# Map tiles are downloaded per machine (docs/adr/0001), not committed
+public/tiles/
