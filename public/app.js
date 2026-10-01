@@ -13,11 +13,20 @@
   // DOM-free logic (sort, count, place, wording) lives in logic.js so it can be tested.
   const L = window.NAMTUAM_LOGIC
 
-  const state = { districts: [], stations: [], reports: [], filter: "all", selected: null }
+  // Simulated flood water from demo.js (ข้อมูลจำลอง). Not made from reports; labelled wherever it shows.
+  const DEMO = window.NAMTUAM_DEMO
+  // Depth bands in cm for the water layer. Colours come from the --flood-1..5 tokens in app.css,
+  // so the map and the legend share one palette per theme.
+  const FLOOD_CM = [10, 30, 50, 80, 100]
+  const FLOOD_LAYERS = ["demo-flood-edge", "demo-flood-glow", "demo-flood"]
+
+  const state = { districts: [], stations: [], reports: [], filter: "all", selected: null, water: Boolean(DEMO) }
   const pins = new Map()
   let map = null
   let hasTiles = false
   let firstRender = true
+  // True between a style's "style.load" and the next setStyle; custom layers can only be added then.
+  let styleReady = false
   let popup = null
   let onPopupClose = null
 
@@ -244,7 +253,68 @@
     if (fly) map.flyTo({ center: at, zoom: Math.max(map.getZoom(), 13) })
   }
 
+  /**
+   * Draw (or remove) the simulated water under the basemap's labels. Each depth band is a fill that
+   * gets more opaque with depth, over a blurred line of the same colour so edges read as water.
+   * Safe to call any time.
+   */
+  function syncFloodLayers() {
+    $("legend").hidden = !state.water || !map
+    if (!map || !styleReady) return
+    for (const id of FLOOD_LAYERS) if (map.getLayer(id)) map.removeLayer(id)
+    if (map.getSource("demo-flood")) map.removeSource("demo-flood")
+    if (!state.water) return
+
+    const colour = ["interpolate", ["linear"], ["get", "depthCm"], ...FLOOD_CM.flatMap((cm, i) => [cm, cssVar(`--flood-${i + 1}`)])]
+    const beforeId = map.getStyle().layers.find((l) => l.type === "symbol")?.id
+    map.addSource("demo-flood", { type: "geojson", data: DEMO.floodAreas() })
+    map.addLayer(
+      {
+        id: "demo-flood-glow",
+        type: "line",
+        source: "demo-flood",
+        paint: {
+          "line-color": colour,
+          "line-width": ["interpolate", ["linear"], ["zoom"], 10, 4, 15, 14],
+          "line-blur": ["interpolate", ["linear"], ["zoom"], 10, 3, 15, 10],
+          "line-opacity": 0.45
+        }
+      },
+      beforeId
+    )
+    map.addLayer(
+      {
+        id: "demo-flood",
+        type: "fill",
+        source: "demo-flood",
+        paint: {
+          "fill-color": colour,
+          "fill-opacity": ["interpolate", ["linear"], ["get", "depthCm"], 10, 0.32, 50, 0.5, 100, 0.72],
+          "fill-antialias": true
+        }
+      },
+      beforeId
+    )
+    map.addLayer(
+      {
+        id: "demo-flood-edge",
+        type: "line",
+        source: "demo-flood",
+        filter: ["==", ["get", "depthCm"], FLOOD_CM[0]],
+        paint: { "line-color": cssVar("--flood-edge"), "line-width": 1.2 }
+      },
+      beforeId
+    )
+  }
+
+  function renderWaterToggle() {
+    const button = $("water-toggle")
+    button.hidden = !DEMO
+    button.setAttribute("aria-pressed", String(state.water))
+  }
+
   function render() {
+    renderWaterToggle()
     renderSummary()
     renderFilters()
     renderList()
@@ -321,6 +391,11 @@
       transformRequest
     })
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right")
+    // Custom layers are dropped whenever the style changes (blank → basemap), so redraw on every load.
+    map.on("style.load", () => {
+      styleReady = true
+      syncFloodLayers()
+    })
     // The tiles file is not in git. Without it the map still shows pins on a plain background.
     try {
       const probe = await fetch(TILES_URL, { headers: { range: "bytes=0-126" } })
@@ -336,8 +411,16 @@
 
   function applyStyle() {
     if (!map) return
+    styleReady = false
+    // diff: false so every swap is a full load that fires "style.load" and the water comes back.
     map.setStyle(hasTiles ? basemapStyle() : blankStyle(), { diff: false })
   }
+
+  $("water-toggle").addEventListener("click", () => {
+    state.water = !state.water
+    renderWaterToggle()
+    syncFloodLayers()
+  })
 
   async function refresh() {
     try {

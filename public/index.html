@@ -11,6 +11,7 @@
   <script src="/vendor/maplibre-gl.js" defer></script>
   <script src="/vendor/pmtiles.js" defer></script>
   <script src="/vendor/basemaps.js" defer></script>
+  <script src="/demo.js" defer></script>
   <script src="/logic.js" defer></script>
   <script src="/app.js" defer></script>
 </head>
@@ -50,6 +51,9 @@
     <section class="reports" aria-labelledby="list-h">
       <div class="section-head">
         <h2 id="list-h">จุดที่มีคนรายงาน <span class="count" id="count"></span></h2>
+        <button class="toggle" id="water-toggle" type="button" aria-pressed="true">
+          <span class="switch" aria-hidden="true"></span>ผืนน้ำจำลอง
+        </button>
       </div>
       <p class="notice report-notice" id="report-notice">ผู้ใช้รายงาน ยังไม่ยืนยัน ไม่ใช่ประกาศเตือนภัยทางการ</p>
       <div class="filters" id="filters" role="group" aria-label="กรองตามเขต"></div>
@@ -62,6 +66,17 @@
       <a href="/api">API</a>
     </p>
   </aside>
+
+  <div class="legend" id="legend" hidden>
+    <span class="legend-title">ความลึกของน้ำ <em>ข้อมูลจำลอง ไม่ใช่ขอบเขตน้ำท่วมจริง</em></span>
+    <ol class="legend-steps" aria-label="ระดับน้ำ 10 ถึง 100 เซนติเมตร">
+      <li class="s1"><span>10</span></li>
+      <li class="s2"><span>30</span></li>
+      <li class="s3"><span>50</span></li>
+      <li class="s4"><span>80</span></li>
+      <li class="s5"><span>100+ ซม.</span></li>
+    </ol>
+  </div>
 
   <p class="map-status" id="map-status" hidden></p>
   <p class="toast" id="toast" role="status" hidden></p>

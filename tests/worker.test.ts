@@ -82,7 +82,7 @@ describe("map page", () => {
   })
 
   it("loads nothing from another site", () => {
-    for (const path of ["public/index.html", "public/app.js", "public/logic.js", "public/app.css"]) {
+    for (const path of ["public/index.html", "public/app.js", "public/logic.js", "public/demo.js", "public/app.css"]) {
       const urls = textOf(path).match(/https?:\/\/[^\s"'`)<>\\]+/g) ?? []
       expect(urls.filter((url) => !NOT_LOADED.has(url)), path).toEqual([])
     }
@@ -107,7 +107,7 @@ describe("map page", () => {
   })
 
   it("never builds HTML from data and only reads", () => {
-    for (const path of ["public/app.js", "public/logic.js"]) {
+    for (const path of ["public/app.js", "public/logic.js", "public/demo.js"]) {
       const js = textOf(path)
       for (const sink of ["innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval(", "setHTML"]) {
         expect(js, `${path} ${sink}`).not.toContain(sink)
@@ -134,6 +134,35 @@ describe("map page", () => {
     const list = [report("a", "wet", "x"), report("b", "dangerous", "x"), report("c", "dangerous", "x", "lat-phrao")]
     expect({ ...L.countBySeverity(list, "all") }).toEqual({ wet: 1, "hard-for-small-cars": 0, "unsafe-for-small-cars": 0, dangerous: 2 })
     expect(L.countBySeverity(list, "chatuchak").dangerous).toBe(1)
+  })
+
+  it("labels the simulated water wherever it shows", () => {
+    const html = textOf("public/index.html")
+    expect(html).toContain("ผืนน้ำจำลอง")
+    expect(html).toContain("ข้อมูลจำลอง ไม่ใช่ขอบเขตน้ำท่วมจริง")
+    const window: { NAMTUAM_DEMO?: { label: string } } = {}
+    runInNewContext(textOf("public/demo.js"), { window, Math })
+    expect(window.NAMTUAM_DEMO?.label).toBe("ข้อมูลจำลอง ไม่ใช่ขอบเขตน้ำท่วมจริง")
+  })
+
+  it("draws simulated water as closed rings in Bangkok, depths in whole cm", () => {
+    type Feature = { properties: { depthCm: number }; geometry: { type: string; coordinates: [number, number][][] } }
+    const window: { NAMTUAM_DEMO?: { floodAreas: () => { features: Feature[] } } } = {}
+    runInNewContext(textOf("public/demo.js"), { window, Math })
+    const { features } = window.NAMTUAM_DEMO?.floodAreas() ?? { features: [] }
+    expect(features.length).toBeGreaterThan(0)
+    for (const { properties, geometry } of features) {
+      expect([10, 30, 50, 80, 100]).toContain(properties.depthCm)
+      expect(geometry.type).toBe("Polygon")
+      const ring = geometry.coordinates[0] ?? []
+      expect(ring[0]).toEqual(ring[ring.length - 1])
+      for (const [lon, lat] of ring) {
+        expect(lon).toBeGreaterThanOrEqual(100.3)
+        expect(lon).toBeLessThanOrEqual(100.95)
+        expect(lat).toBeGreaterThanOrEqual(13.5)
+        expect(lat).toBeLessThanOrEqual(14.05)
+      }
+    }
   })
 
   it("reads one byte range for the map tiles", () => {
