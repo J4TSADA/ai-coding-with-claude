@@ -3,8 +3,10 @@ import { RateLimiter } from "./rate-limit.ts"
 import { ReportStore, SEVERITY_LABELS, validateReport, type Report } from "./reports.ts"
 import { latestReading, stationsIn } from "./stations.ts"
 import { toBangkokIso } from "./time.ts"
+import { createRateLimiter, ipKey, type RateLimiter, REPORT_RATE_LIMIT } from "./rate-limit.ts"
+import { createReportStore, REPORT_NOTICE, type ReportStore, validateReport } from "./reports.ts"
 
-export type Response = { status: number; body: unknown }
+export type Response = { status: number; body: unknown; log?: string }
 
 export type Context = { now: Date; ip?: string }
 

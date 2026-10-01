@@ -42,3 +42,9 @@ describe("unknown routes", () => {
     expect(handle("GET", "/nope", undefined, { now }).status).toBe(404)
   })
 })
+
+describe("RPT-REQ-020 existing endpoints do not change", () => {
+  it("GET /districts body is unchanged", () => {
+    expect(handle("GET", "/districts", undefined, { now }).body).toMatchSnapshot()
+  })
+})
