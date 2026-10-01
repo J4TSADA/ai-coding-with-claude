@@ -1,0 +1,7 @@
+// Read-only Cloudflare Workers demo. Deploy by hand with `npx wrangler deploy` only when you mean to.
+{
+  "name": "namtuam-mai-demo",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": true
+}
