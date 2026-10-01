@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import worker from "../src/worker.ts"
+import worker, { parseRange } from "../src/worker.ts"
 import { NOTICE } from "../src/app.ts"
 import { REPORT_NOTICE } from "../src/reports.ts"
 import { createHash } from "node:crypto"
@@ -134,6 +134,20 @@ describe("map page", () => {
     const list = [report("a", "wet", "x"), report("b", "dangerous", "x"), report("c", "dangerous", "x", "lat-phrao")]
     expect({ ...L.countBySeverity(list, "all") }).toEqual({ wet: 1, "hard-for-small-cars": 0, "unsafe-for-small-cars": 0, dangerous: 2 })
     expect(L.countBySeverity(list, "chatuchak").dangerous).toBe(1)
+  })
+
+  it("reads one byte range for the map tiles", () => {
+    expect(parseRange("bytes=0-126", 1000)).toEqual({ start: 0, end: 126 })
+    expect(parseRange("bytes=900-", 1000)).toEqual({ start: 900, end: 999 })
+    expect(parseRange("bytes=-100", 1000)).toEqual({ start: 900, end: 999 })
+    expect(parseRange("bytes=990-5000", 1000)).toEqual({ start: 990, end: 999 })
+    for (const bad of ["bytes=1000-", "bytes=5-2", "bytes=-", "bytes=0-1,4-5", "items=0-1"]) {
+      expect(parseRange(bad, 1000), bad).toBeUndefined()
+    }
+  })
+
+  it("keeps /tiles/* off the API without the assets binding", () => {
+    expect(get("/tiles/bangkok.pmtiles").status).toBe(404)
   })
 
   it("keeps unknown paths a 404 and writes a 405", () => {

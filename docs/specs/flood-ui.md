@@ -8,7 +8,7 @@
 > - หน้าเว็บมี**เฉพาะบน worker demo** `npm run dev` (`src/server.ts`) ไม่เปลี่ยน
 > - `GET /` เป็นหน้าเว็บ รายการ endpoint อยู่ที่ `GET /api`
 > - หน้าเว็บเป็น**แผนที่** ดัดแปลงจาก upstream `feat/fm-01` ถึง `fm-04` (MapLibre GL + PMTiles host เอง)
-> - รอบนี้**ไม่มีไฟล์แผนที่พื้นหลัง** (`bangkok.pmtiles`) หมุดอยู่บนพื้นเรียบ เพิ่มไฟล์ทีหลังได้โดยไม่ต้องแก้โค้ด
+> - แผนที่พื้นหลัง `public/tiles/bangkok.pmtiles` ตัดจาก Protomaps build 20261001 ที่ maxzoom 14 (22.2 MiB ต่ำกว่าเพดาน 25 MiB ของ Workers) ไม่อยู่ใน git สร้างใหม่ตามหัวข้อ Design
 
 ## คำศัพท์
 
@@ -62,6 +62,15 @@
 - [ ] ไฟล์ใน `public/vendor/` ตรงกับ `public/vendor/SHA256SUMS`
 - [ ] `public/_headers` ใส่ `X-Content-Type-Options: nosniff` และ `Content-Security-Policy` ที่มี `script-src 'self'`, `connect-src 'self'`, `form-action 'none'`, `frame-ancestors 'none'` ให้ทุก path
 
+### UI-REQ-008 ไฟล์แผนที่พื้นหลังตอบ Range request
+
+Workers Static Assets ส่งไฟล์เต็มแม้มี header `Range` (ทดสอบกับ `wrangler dev` 2026-10-01) แต่ PMTiles ต้องได้ `206`
+
+- [ ] `wrangler.jsonc` ตั้ง `assets.binding: "ASSETS"` และ `run_worker_first: ["/tiles/*"]`
+- [ ] `GET /tiles/bangkok.pmtiles` ที่มี `Range: bytes=a-b`, `a-` หรือ `-n` ได้ `206` พร้อม `content-range` และ byte ตรงกับไฟล์
+- [ ] range ที่ใช้ไม่ได้ได้ `416` ไม่มี `Range` ได้ไฟล์เต็ม `200`
+- [ ] `parseRange` รับ range เดียวเท่านั้น (test ใน `tests/worker.test.ts`)
+
 ### UI-REQ-007 demo ยังอ่านอย่างเดียว
 
 - [ ] หน้าเว็บไม่มี `<form>` และ `app.js` ไม่ส่ง method อื่นนอกจาก GET
@@ -74,7 +83,10 @@
 - `public/`: `index.html`, `app.js` (DOM + แผนที่), `logic.js` (ไม่มี DOM, test ได้), `app.css`, `_headers`, ฟอนต์ Noto Sans Thai และ `vendor/` (MapLibre, pmtiles, basemaps, glyphs, sprites) จาก upstream ตาม ADR 0001
 - glyphs บนดิสก์ชื่อ `noto-sans-regular` แต่ MapLibre ขอ `Noto%20Sans%20Regular` จึงแปลง URL ใน `transformRequest` ของ `app.js`
 - `src/worker.ts`: เพิ่ม `/api/centres` ส่วนหน้าเว็บไม่ผ่าน worker แล้ว (ลบ `src/page.ts`)
-- ไฟล์แผนที่พื้นหลังวางที่ `public/tiles/bangkok.pmtiles` (อยู่ใน `.gitignore`) วิธีสร้างดู ADR 0001 ไฟล์ใหญ่กว่า 25 MiB จะ deploy เป็น static asset ไม่ได้ ต้องใช้ R2
+- ไฟล์แผนที่พื้นหลังวางที่ `public/tiles/bangkok.pmtiles` (อยู่ใน `.gitignore` แต่ `wrangler deploy` อัปโหลดเพราะอยู่ใน `public/`) สร้างด้วย [pmtiles CLI](https://docs.protomaps.com/pmtiles/cli):
+  `pmtiles extract https://build.protomaps.com/YYYYMMDD.pmtiles public/tiles/bangkok.pmtiles --bbox=100.30,13.50,100.95,14.05 --maxzoom=14`
+  ใช้ build ที่ schema ตรงกับ `basemaps.js` (v4) ถ้าไฟล์เกิน 25 MiB ต้องย้ายไป R2
+- `/tiles/*` ผ่าน worker ก่อน (`serveTiles`) เพื่อตอบ `206` ตัดช่วงจากไฟล์ใน `ASSETS`
 - ไม่เพิ่ม dependency ใน `package.json` ไม่แก้ `src/app.ts`, `src/reports.ts`, `src/server.ts`, `src/districts.ts` และ `NOTICE`
 
 ## ร่าง test (เจ้าของฟีเจอร์เป็นคนวางใน `tests/worker.test.ts`)
