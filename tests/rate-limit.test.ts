@@ -13,7 +13,9 @@ const TEN_MIN = 10 * 60 * 1000
 type Ctx = ReturnType<typeof makeCtx>
 const postTimes = (ctx: Ctx, times: number, body: unknown = validBody()) =>
   Array.from({ length: times }, () => handle("POST", PATH, body, ctx).status)
-const stored = (ctx: Ctx) => ctx.reports!.listByDistrict("lat-phrao", ctx.now).length
+// Counts submissions, not groups: identical bodies merge into one report (RPT-REQ-012).
+const stored = (ctx: Ctx) =>
+  ctx.reports!.listByDistrict("lat-phrao", ctx.now).reduce((n, r) => n + r.confirmations, 0)
 
 describe("RPT-REQ-014 5 submissions per 10 minutes per IP", () => {
   it("the 6th gets 429 with retryAfterSeconds 600 and stores nothing", () => {

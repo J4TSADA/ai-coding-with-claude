@@ -440,3 +440,63 @@ describe("RPT-REQ-021 IP never leaves the server", () => {
     for (const res of responses) expect(JSON.stringify(res)).not.toContain("203.0.113.7")
   })
 })
+
+describe("RPT-REQ-009 severity boundaries are in different levels", () => {
+  it.each([[9, 10], [29, 30], [49, 50]])("%i cm and %i cm differ", (below, at) => {
+    expect(severityOf(below).level).not.toBe(severityOf(at).level)
+  })
+})
+
+describe("RPT-REQ-012 merging duplicate reports", () => {
+  type ListBody = { reports: { id: string; depthCm: number; confirmations: number }[] }
+  const LANDMARK = "หน้าปากซอยลาดพร้าว 71"
+  const send = (ctx: ReturnType<typeof makeCtx>, depthCm: number, seenAt: string) =>
+    handle("POST", PATH, { landmark: LANDMARK, depthCm, seenAt }, ctx)
+  const list = (ctx: ReturnType<typeof makeCtx>) =>
+    (handle("GET", "/districts/lat-phrao", undefined, ctx).body as ListBody).reports
+
+  it("same spot, same district within the window becomes one report with the latest depth", () => {
+    const ctx = makeCtx()
+    const first = send(ctx, 20, "2026-09-30T18:30:00+07:00").body as ReportBody
+    const second = send(ctx, 40, "2026-09-30T19:00:00+07:00")
+    const body = second.body as ReportBody
+    expect(second.status).toBe(201)
+    expect(body.merged).toBe(true)
+    expect(body.report.id).toBe(first.report.id)
+    expect(body.report.depthCm).toBe(40)
+    expect(body.report.confirmations).toBe(2)
+    expect(list(ctx)).toHaveLength(1)
+    expect(list(ctx)[0]).toMatchObject({ depthCm: 40, confirmations: 2 })
+  })
+
+  it("exactly at the window edge still merges", () => {
+    const ctx = makeCtx()
+    send(ctx, 20, "2026-09-30T11:30:00Z")
+    const res = send(ctx, 20, "2026-09-30T12:30:00Z")
+    expect((res.body as ReportBody).merged).toBe(true)
+    expect(list(ctx)).toHaveLength(1)
+  })
+
+  it("one millisecond past the window is a new report", () => {
+    const ctx = makeCtx()
+    const first = send(ctx, 20, "2026-09-30T11:29:59.999Z").body as ReportBody
+    const res = send(ctx, 20, "2026-09-30T12:30:00Z")
+    const body = res.body as ReportBody
+    expect(body.merged).toBe(false)
+    expect(body.report.id).not.toBe(first.report.id)
+    expect(list(ctx)).toHaveLength(2)
+  })
+})
+
+describe("RPT-REQ-013 expired reports are not listed", () => {
+  const at = (iso: string) => new Date(iso)
+  const listAt = (ctx: ReturnType<typeof makeCtx>, time: Date) =>
+    (handle("GET", "/districts/lat-phrao", undefined, { ...ctx, now: time }).body as { reports: unknown[] }).reports
+
+  it("still shown 6 h after the last confirmation, gone 1 ms later", () => {
+    const ctx = makeCtx()
+    expect(post({ ...validBody(), seenAt: "2026-09-30T12:00:00Z" }, { ...ctx, now: at("2026-09-30T12:00:00Z") }).status).toBe(201)
+    expect(listAt(ctx, at("2026-09-30T18:00:00Z"))).toHaveLength(1)
+    expect(listAt(ctx, at("2026-09-30T18:00:00.001Z"))).toHaveLength(0)
+  })
+})

@@ -178,6 +178,7 @@ type Submission = {
 type ReportGroup = {
   id: string // public report id, own newId(), not a submission id
   districtId: string
+  landmarkKey: string
   createdAt: Date
   submissions: Submission[]
 }
@@ -215,31 +216,49 @@ export function severityOf(depthCm: number): Severity {
   return { level: match.level, labelTh: match.labelTh }
 }
 
+export const MERGE_WINDOW_MS = 60 * 60 * 1000
+
+/** Key used to match duplicate landmarks: NFKC, Thai digits to Arabic, lower case (RPT-REQ-012). */
+export function landmarkKey(display: string): string {
+  return display
+    .normalize("NFKC")
+    .replace(/[๐-๙]/g, (d) => String(d.charCodeAt(0) - 0x0e50))
+    .toLowerCase()
+}
+
+/** Expired means more than 6 h old; exactly 6 h is still live (RPT-REQ-013). */
+function isLive(s: Submission, now: Date): boolean {
+  return now.getTime() - s.seenAt.getTime() <= MAX_SEEN_AGE_MS
+}
+
 /** Latest submission by seenAt, then receivedAt. */
-function latestOf(group: ReportGroup): Submission {
-  return group.submissions.reduce((a, b) => {
+function latestOf(subs: Submission[]): Submission {
+  return subs.reduce((a, b) => {
     const bySeen = b.seenAt.getTime() - a.seenAt.getTime()
     if (bySeen !== 0) return bySeen > 0 ? b : a
     return b.receivedAt.getTime() > a.receivedAt.getTime() ? b : a
   })
 }
 
-function lastReceivedAt(group: ReportGroup): number {
-  return Math.max(...group.submissions.map((s) => s.receivedAt.getTime()))
+function lastReceivedAt(subs: Submission[]): number {
+  return Math.max(...subs.map((s) => s.receivedAt.getTime()))
 }
 
+/** A group with its live submissions only. `subs` is empty when the group has expired. */
+type LiveGroup = { group: ReportGroup; subs: Submission[] }
+
 /** seenAt newest first, then latest receivedAt newest first, then id ascending (RPT-REQ-010). */
-function compareGroups(a: ReportGroup, b: ReportGroup): number {
-  const bySeen = latestOf(b).seenAt.getTime() - latestOf(a).seenAt.getTime()
+function compareLive(a: LiveGroup, b: LiveGroup): number {
+  const bySeen = latestOf(b.subs).seenAt.getTime() - latestOf(a.subs).seenAt.getTime()
   if (bySeen !== 0) return bySeen
-  const byReceived = lastReceivedAt(b) - lastReceivedAt(a)
+  const byReceived = lastReceivedAt(b.subs) - lastReceivedAt(a.subs)
   if (byReceived !== 0) return byReceived
-  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0
+  return a.group.id < b.group.id ? -1 : a.group.id > b.group.id ? 1 : 0
 }
 
 /** Build a new object field by field. Never spread internal records: they hold personal data. */
-export function toPublic(group: ReportGroup): PublicReport {
-  const latest = latestOf(group)
+function toPublic({ group, subs }: LiveGroup): PublicReport {
+  const latest = latestOf(subs)
   return {
     id: group.id,
     districtId: group.districtId,
@@ -247,19 +266,49 @@ export function toPublic(group: ReportGroup): PublicReport {
     depthCm: latest.depthCm,
     seenAt: toBangkokIso(latest.seenAt),
     severity: severityOf(latest.depthCm),
-    confirmations: group.submissions.length,
+    confirmations: subs.length,
     source: "user-report",
     disclaimer: REPORT_NOTICE
   }
 }
 
-/** In-memory only. Duplicate merging (RPT-REQ-012) is not done yet. */
+/** In-memory only. */
 export function createReportStore(): ReportStore {
   const groups: ReportGroup[] = []
 
+  const live = (group: ReportGroup, now: Date): LiveGroup => ({
+    group,
+    subs: group.submissions.filter((s) => isLive(s, now))
+  })
+
+  /** Closest latest seenAt within the window; ties go to the newer seenAt, then the older group (RPT-REQ-012). */
+  function findMergeTarget(districtId: string, key: string, seenAt: Date, now: Date): LiveGroup | undefined {
+    let best: { lg: LiveGroup; delta: number; latestSeen: number } | undefined
+    for (const g of groups) {
+      if (g.districtId !== districtId || g.landmarkKey !== key) continue
+      const lg = live(g, now)
+      if (lg.subs.length === 0) continue
+      const latestSeen = latestOf(lg.subs).seenAt.getTime()
+      const delta = Math.abs(seenAt.getTime() - latestSeen)
+      if (delta > MERGE_WINDOW_MS) continue
+      if (!best || delta < best.delta || (delta === best.delta && latestSeen > best.latestSeen)) {
+        best = { lg, delta, latestSeen }
+      }
+    }
+    return best?.lg
+  }
+
   return {
     submit(districtId, input, now, newId) {
-      const groupId = newId()
+      const key = landmarkKey(input.landmark)
+      const target = findMergeTarget(districtId, key, input.seenAt, now)
+      const group: ReportGroup = target?.group ?? {
+        id: newId(),
+        districtId,
+        landmarkKey: key,
+        createdAt: now,
+        submissions: []
+      }
       const submission: Submission = {
         id: newId(),
         depthCm: input.depthCm,
@@ -268,16 +317,17 @@ export function createReportStore(): ReportStore {
         landmark: input.landmark
       }
       if (input.phone !== undefined) submission.phone = input.phone
-      const group: ReportGroup = { id: groupId, districtId, createdAt: now, submissions: [submission] }
-      groups.push(group)
-      return { report: toPublic(group), merged: false, submissionId: submission.id }
+      group.submissions.push(submission)
+      if (!target) groups.push(group)
+      return { report: toPublic(live(group, now)), merged: target !== undefined, submissionId: submission.id }
     },
 
-    // `now` is unused until expiry (RPT-REQ-013) is added.
-    listByDistrict(districtId, _now) {
+    listByDistrict(districtId, now) {
       return groups
         .filter((g) => g.districtId === districtId)
-        .sort(compareGroups)
+        .map((g) => live(g, now))
+        .filter((lg) => lg.subs.length > 0)
+        .sort(compareLive)
         .map(toPublic)
     }
   }
