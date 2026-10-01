@@ -1,14 +1,20 @@
-import { createApp, NOTICE } from "./app.ts"
-import { ReportStore } from "./reports.ts"
+import { handle, NOTICE } from "./app.ts"
+import { districts } from "./districts.ts"
+import { createReportStore, REPORT_NOTICE, type ReportStore, validateReport } from "./reports.ts"
 
 const MINUTE = 60 * 1000
 
 /** Made-up reports, all seen within the last hour, so the demo always has something to show. No phones. */
 function seededStore(now: Date): ReportStore {
-  const store = new ReportStore()
-  const ago = (minutes: number) => new Date(now.getTime() - minutes * MINUTE)
-  const seed = (districtId: string, landmark: string, depthCm: number, minutes: number) =>
-    store.submit({ districtId, landmark, depthCm, seenAt: ago(minutes) }, ago(minutes))
+  const store = createReportStore()
+  let n = 0
+  const newId = () => `demo-${++n}`
+  const seed = (districtId: string, landmark: string, depthCm: number, minutes: number) => {
+    const at = new Date(now.getTime() - minutes * MINUTE)
+    const checked = validateReport({ landmark, depthCm, seenAt: at.toISOString() }, at)
+    if (!checked.ok) throw new Error(`bad demo seed: ${landmark}`)
+    store.submit(districtId, checked.value, at, newId)
+  }
 
   seed("chatuchak", "หน้าตลาดนัดจตุจักร ประตู 1", 40, 50)
   seed("chatuchak", "หน้าตลาดนัดจตุจักร ประตู 1", 45, 20) // a second person confirms it
@@ -32,8 +38,17 @@ export default {
     if (path === "/") return json(200, { notice: NOTICE, endpoints: ENDPOINTS })
 
     const now = new Date()
-    const handle = createApp(seededStore(now))
-    const { status, body } = handle("GET", path, undefined, { now })
+    const reports = seededStore(now)
+
+    // The app has no GET for this path (reports come with GET /districts/:id), so the demo lists them itself.
+    const reportsMatch = path.match(/^\/districts\/([a-z-]+)\/reports$/)
+    if (reportsMatch) {
+      const districtId = reportsMatch[1] ?? ""
+      if (!districts.has(districtId)) return json(404, { error: "unknown district" })
+      return json(200, { notice: NOTICE, reportNotice: REPORT_NOTICE, reports: reports.listByDistrict(districtId, now) })
+    }
+
+    const { status, body } = handle("GET", path, undefined, { now, reports })
     return json(status, body)
   }
 }
