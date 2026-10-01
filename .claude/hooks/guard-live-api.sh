@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # PreToolUse hook: never write to the live Flood Watch map (a real disaster map)
-CMD=$(jq -r '.tool_input.command // empty')
+CMD=$(bash "$(dirname "$0")/read-input.sh" command) || { echo "blocked: hook could not read its input" >&2; exit 2; }
 
 if [[ "$CMD" == *flood-api.rooptanjai.com* ]] &&
    [[ "$CMD" =~ (-X|--request)[[:space:]]*(POST|PUT|PATCH|DELETE)|(^|[[:space:]])(-d|-F|--data[a-z-]*|--form|--json)([[:space:]=]|$) ]]; then
