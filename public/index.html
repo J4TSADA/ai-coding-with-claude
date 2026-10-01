@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark light">
+  <title>น้ำท่วมไหม</title>
+  <link rel="preload" href="/fonts/noto-sans-thai-thai.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/vendor/maplibre-gl.css">
+  <link rel="stylesheet" href="/app.css">
+  <script src="/vendor/maplibre-gl.js" defer></script>
+  <script src="/vendor/pmtiles.js" defer></script>
+  <script src="/vendor/basemaps.js" defer></script>
+  <script src="/demo.js" defer></script>
+  <script src="/logic.js" defer></script>
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <div class="map" id="map" role="region" aria-label="แผนที่จุดน้ำท่วม"></div>
+
+  <aside class="panel" aria-labelledby="brand-name">
+    <span class="handle" aria-hidden="true"></span>
+
+    <header class="brand">
+      <svg class="mark" viewBox="0 0 32 32" aria-hidden="true">
+        <path d="M16 3c5.5 7 9 11.8 9 16a9 9 0 0 1-18 0c0-4.2 3.5-9 9-16Z" fill="currentColor" opacity="0.18"/>
+        <path d="M16 3c5.5 7 9 11.8 9 16a9 9 0 0 1-18 0c0-4.2 3.5-9 9-16Z" fill="none" stroke="currentColor" stroke-width="1.6"/>
+        <path d="M8.2 20.5c2.6 1.6 5.2-1.6 7.8 0s5.2 1.6 7.8 0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+      </svg>
+      <div class="brand-text">
+        <h1 id="brand-name">น้ำท่วมไหม</h1>
+        <p>แผนที่จุดน้ำท่วมจากคนในพื้นที่ · กรุงเทพฯ</p>
+      </div>
+    </header>
+
+    <p class="notice" id="notice">ตัวอย่างเพื่อการเรียนเท่านั้น ไม่ใช่ประกาศเตือนภัยทางการ ข้อมูลเป็นข้อมูลสมมติ</p>
+
+    <section class="overview" aria-labelledby="overview-h">
+      <div class="section-head">
+        <h2 id="overview-h">สถานการณ์ตอนนี้</h2>
+        <span class="updated" id="updated">กำลังโหลด…</span>
+      </div>
+      <dl class="summary" id="summary">
+        <div class="tile wet"><dt>ถนนเปียก</dt><dd><b>0</b><span>จุด</span></dd></div>
+        <div class="tile hard-for-small-cars"><dt>รถเล็กผ่านลำบาก</dt><dd><b>0</b><span>จุด</span></dd></div>
+        <div class="tile unsafe-for-small-cars"><dt>รถเล็กไม่ควรผ่าน</dt><dd><b>0</b><span>จุด</span></dd></div>
+        <div class="tile dangerous"><dt>อันตราย</dt><dd><b>0</b><span>จุด</span></dd></div>
+      </dl>
+    </section>
+
+    <section class="reports" aria-labelledby="list-h">
+      <div class="section-head">
+        <h2 id="list-h">จุดที่มีคนรายงาน <span class="count" id="count"></span></h2>
+        <button class="toggle" id="water-toggle" type="button" aria-pressed="true">
+          <span class="switch" aria-hidden="true"></span>ผืนน้ำจำลอง
+        </button>
+      </div>
+      <p class="notice report-notice" id="report-notice">ผู้ใช้รายงาน ยังไม่ยืนยัน ไม่ใช่ประกาศเตือนภัยทางการ</p>
+      <div class="filters" id="filters" role="group" aria-label="กรองตามเขต"></div>
+      <ol class="incidents" id="incidents" aria-live="polite"></ol>
+    </section>
+
+    <p class="fineprint">
+      รายงานจากคนในพื้นที่ยังไม่ได้ยืนยัน แสดงเฉพาะ 6 ชั่วโมงล่าสุด
+      ตำแหน่งหมุดเป็นค่าประมาณจากเขต ระบบไม่เก็บพิกัดของผู้รายงาน ·
+      <a href="/api">API</a>
+    </p>
+  </aside>
+
+  <div class="legend" id="legend" hidden>
+    <span class="legend-title">ความลึกของน้ำ <em>ข้อมูลจำลอง ไม่ใช่ขอบเขตน้ำท่วมจริง</em></span>
+    <ol class="legend-steps" aria-label="ระดับน้ำ 10 ถึง 100 เซนติเมตร">
+      <li class="s1"><span>10</span></li>
+      <li class="s2"><span>30</span></li>
+      <li class="s3"><span>50</span></li>
+      <li class="s4"><span>80</span></li>
+      <li class="s5"><span>100+ ซม.</span></li>
+    </ol>
+  </div>
+
+  <p class="map-status" id="map-status" hidden></p>
+  <p class="toast" id="toast" role="status" hidden></p>
+</body>
+</html>

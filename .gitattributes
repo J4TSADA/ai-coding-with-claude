@@ -1,0 +1,4 @@
+# Vendored map files and fonts are checked byte for byte against public/vendor/SHA256SUMS (ADR 0001).
+# Keep git from converting their line endings on Windows (core.autocrlf).
+public/vendor/** -text
+public/fonts/** -text

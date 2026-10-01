@@ -1,0 +1,12 @@
+# Workers Static Assets headers (not served as a file). Everything comes from this site (ADR 0001).
+# MapLibre needs blob: workers and data:/blob: images. No forms: the demo is read-only.
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src blob:; child-src blob:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+
+/vendor/*
+  Cache-Control: public, max-age=86400
+
+/fonts/*
+  Cache-Control: public, max-age=31536000, immutable
