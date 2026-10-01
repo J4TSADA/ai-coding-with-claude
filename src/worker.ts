@@ -1,5 +1,6 @@
 import { handle, NOTICE } from "./app.ts"
 import { districts } from "./districts.ts"
+import { APP_CSS, APP_JS, PAGE_HTML } from "./page.ts"
 import { createReportStore, REPORT_NOTICE, type ReportStore, validateReport } from "./reports.ts"
 
 const MINUTE = 60 * 1000
@@ -29,13 +30,29 @@ const ENDPOINTS = ["/districts", "/districts/chatuchak", "/districts/chatuchak/r
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json; charset=utf-8" } })
 
+/** Only this origin's script, style and fetch; no frames, forms or base tag (UI-REQ-006). */
+const CSP =
+  "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; " +
+  "base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+
+const asset = (body: string, contentType: string, extra: Record<string, string> = {}) =>
+  new Response(body, { status: 200, headers: { "content-type": contentType, "x-content-type-options": "nosniff", ...extra } })
+
+const ASSETS: Record<string, () => Response> = {
+  "/": () => asset(PAGE_HTML, "text/html; charset=utf-8", { "content-security-policy": CSP }),
+  "/app.css": () => asset(APP_CSS, "text/css; charset=utf-8"),
+  "/app.js": () => asset(APP_JS, "text/javascript; charset=utf-8")
+}
+
 /** Read-only demo on Cloudflare Workers. Each request gets a fresh store, so nothing is ever kept. */
 export default {
   fetch(request: Request): Response {
     if (request.method !== "GET") return json(405, { error: "read-only demo: only GET is allowed" })
 
     const path = new URL(request.url).pathname
-    if (path === "/") return json(200, { notice: NOTICE, endpoints: ENDPOINTS })
+    const page = Object.hasOwn(ASSETS, path) ? ASSETS[path] : undefined
+    if (page) return page()
+    if (path === "/api") return json(200, { notice: NOTICE, endpoints: ENDPOINTS })
 
     const now = new Date()
     const reports = seededStore(now)
