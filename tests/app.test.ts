@@ -1,5 +1,7 @@
+import { readFileSync } from "node:fs"
 import { describe, expect, it } from "vitest"
 import { handle, NOTICE } from "../src/app.ts"
+import { makeCtx } from "./helpers.ts"
 
 const now = new Date("2026-09-30T12:30:00Z")
 
@@ -45,6 +47,16 @@ describe("unknown routes", () => {
 
 describe("RPT-REQ-020 existing endpoints do not change", () => {
   it("GET /districts body is unchanged", () => {
-    expect(handle("GET", "/districts", undefined, { now }).body).toMatchSnapshot()
+    expect(handle("GET", "/districts", undefined, makeCtx()).body).toMatchSnapshot()
+  })
+
+  it("GET /districts/:id only adds reportNotice and reports", () => {
+    const body = handle("GET", "/districts/lat-phrao", undefined, makeCtx()).body as object
+    expect(Object.keys(body).sort()).toEqual(["district", "notice", "reportNotice", "reports", "stations"])
+  })
+
+  it("adds no runtime dependency", () => {
+    const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as Record<string, unknown>
+    expect(pkg.dependencies ?? {}).toEqual({})
   })
 })

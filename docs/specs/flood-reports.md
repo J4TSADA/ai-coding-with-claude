@@ -135,11 +135,11 @@ client ส่งระดับความรุนแรงมาเองไ�
 | ความลึก (ซม.) | `level` | `labelTh` |
 | --- | --- | --- |
 | 0–9 | `wet` | ถนนเปียก |
-| 10–29 | `hard-for-small-cars` | รถเล็กผ่านลำบาก |
-| 30–49 | `unsafe-for-small-cars` | รถเล็กไม่ควรผ่าน |
+| 10–24 | `hard-for-small-cars` | รถเล็กผ่านลำบาก |
+| 25–49 | `unsafe-for-small-cars` | รถเล็กไม่ควรผ่าน |
 | 50–300 | `dangerous` | อันตราย |
 
-- [ ] ค่าขอบ `0, 9, 10, 29, 30, 49, 50, 300` ได้ level ตามตาราง (test แบบ table)
+- [ ] ค่าขอบ `0, 9, 10, 24, 25, 49, 50, 300` ได้ level ตามตาราง (test แบบ table)
 - [ ] เกณฑ์อยู่เป็นค่าคงที่ที่เดียวใน `src/reports.ts` (เกณฑ์ยังเป็น open question แก้ได้โดยไม่ต้องแก้ที่อื่น)
 
 ### RPT-REQ-010 รายงานขึ้นใน `GET /districts/:id` ทันที
@@ -238,7 +238,7 @@ client ส่งระดับความรุนแรงมาเองไ�
 
 ### RPT-REQ-018 จำกัดขนาด body และอ่าน UTF-8 ให้ถูก
 
-`server.ts` เก็บ chunk เป็น `Buffer[]` นับ**จำนวน byte** ถ้าเกิน 10 240 byte หยุดอ่าน (`req.destroy()` หลังตอบ) ถ้าไม่เกิน `Buffer.concat(...).toString("utf8")` ครั้งเดียวแล้วค่อย `JSON.parse`
+`server.ts` เก็บ chunk เป็น `Buffer[]` นับ**จำนวน byte** ถ้าเกิน 10 240 byte หยุดเก็บ ตอบ 413 พร้อม header `connection: close` แล้วอ่านส่วนที่เหลือทิ้งโดยไม่เก็บ (ไม่ใช้ `req.destroy()` เพราะการ reset ระหว่างที่ client ยังส่งอยู่ทำให้ client ไม่ได้รับ 413) ถ้าไม่เกิน `Buffer.concat(...).toString("utf8")` ครั้งเดียวแล้วค่อย `JSON.parse`
 
 server ไม่ตอบ 400/413 เอง แต่ส่งค่าพิเศษเข้า `handle()` เพื่อให้ rate limit และ notice อยู่ที่เดียว
 

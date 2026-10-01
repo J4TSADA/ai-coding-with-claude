@@ -1,7 +1,7 @@
 # แผน: รายงานจุดน้ำท่วม (tracer bullet)
 
 > spec: [`docs/specs/flood-reports.md`](../specs/flood-reports.md) (RPT-REQ-001 ถึง 021)
-> สถานะ: ตกลงแผนแล้ว 2026-09-30 ยังไม่เริ่มเขียนโค้ด
+> สถานะ: ตกลงแผนแล้ว 2026-09-30 ทำขั้น 1–8 และรายการใน Later ครบแล้ว 2026-10-01 (หลังรีวิวตาม `docs/Reviews/review.md`)
 
 เส้นทาง tracer: `handle()` (API) → `src/reports.ts` (logic) → `ReportStore` (DB) → test
 "DB" คือ store ในหน่วยความจำเท่านั้น เพราะ CLAUDE.md และ spec ห้ามเก็บลงไฟล์หรือ DB จริง
@@ -29,7 +29,7 @@
 - [x] ไฟล์: แก้ `src/app.ts` ขยาย `Context` (`ip`, `reports`, `newId`) และ `Response` (`log?`) แล้วเพิ่ม route `POST ^/districts/([a-z-]+)/reports$`
 - [x] test RPT-REQ-001: body ตัวอย่างได้ 201, `notice`, `reportNotice` และ `merged: false` อยู่ชั้นบนสุด
 - [x] test RPT-REQ-001: `Object.keys(report).sort()` ตรงรายการ
-- [x] test RPT-REQ-009: table test ที่ขอบ `0, 9, 10, 29, 30, 49, 50, 300`
+- [x] test RPT-REQ-009: table test ที่ขอบ `0, 9, 10, 24, 25, 49, 50, 300`
 - [x] test RPT-REQ-011: `report.source === "user-report"` และ `disclaimer === REPORT_NOTICE`
 - [x] ลำดับ id: รายงานได้ `newId()` ก่อน แล้วจึงถึงการส่ง (รายงานเป็น `id-1` การส่งเป็น `id-2`)
 
@@ -107,17 +107,18 @@
 
 ## Later
 
-- [ ] RPT-REQ-005: pattern ต้องห้าม (บ้านเลขที่ เบอร์ ลิงก์) ได้แก่ `checkText`, NFKC และการแปลงเลขไทย
-- [ ] RPT-REQ-012: รวมรายงานซ้ำ ได้แก่ `landmarkKey`, หน้าต่าง 1 ชม. และ `merged: true`
-- [ ] RPT-REQ-013 / 017: การหมดอายุ, `purgeExpired`, `submissionIds()` และ timer purge ทุก 60 วินาทีที่เรียก `.unref()`
-- [ ] RPT-REQ-016: `Response.log` และ `console.log(res.log)` ใน server
-- [ ] RPT-REQ-018: `INVALID_JSON` / `BODY_TOO_LARGE`, จำกัด body 10 240 byte และอ่าน UTF-8 ข้าม chunk
-- [ ] RPT-REQ-014 ที่เหลือ: IPv6 /64 และนับ sentinel ใน rate limit
-- [ ] RPT-REQ-019: server ตอบ 500 `internal error`
-- [ ] `tests/server.test.ts`: log spy และขนาด body บน `127.0.0.1` port 0
-- [ ] RPT-REQ-021 ส่วน log
-- [ ] README: เพิ่มแถวไฟล์ใหม่และตัวอย่าง `curl` ไปที่ `localhost`
-- [ ] RPT-REQ-020: ไม่มี dependency ใหม่ และไม่มี hostname ของ Flood Watch จริง
+- [x] RPT-REQ-005: pattern ต้องห้าม (บ้านเลขที่ เบอร์ ลิงก์) ได้แก่ `checkText`, NFKC และการแปลงเลขไทย
+- [x] RPT-REQ-012: รวมรายงานซ้ำ ได้แก่ `landmarkKey`, หน้าต่าง 1 ชม. และ `merged: true`
+- [x] RPT-REQ-013 / 017: การหมดอายุ, `purgeExpired`, `submissionIds()` และ timer purge ทุก 60 วินาทีที่เรียก `.unref()`
+- [x] RPT-REQ-016: `Response.log` และ `console.log(res.log)` ใน server
+- [x] RPT-REQ-018: `INVALID_JSON` / `BODY_TOO_LARGE`, จำกัด body 10 240 byte และอ่าน UTF-8 ข้าม chunk (เกินแล้วตอบ 413 พร้อม `connection: close` แล้วอ่านทิ้ง แทน `req.destroy()` เพราะ reset ทำให้ client ไม่ได้ 413)
+- [x] RPT-REQ-014 ที่เหลือ: IPv6 /64 และนับ sentinel ใน rate limit
+- [x] RPT-REQ-019: server ตอบ 500 `internal error`
+- [x] `tests/server.test.ts`: log spy และขนาด body บน `127.0.0.1` port 0 (`server.ts` export `createAppServer()` และ listen เฉพาะตอนรันเป็น entry point)
+- [x] RPT-REQ-021 ส่วน log
+- [x] README: เพิ่มแถวไฟล์ใหม่และตัวอย่าง `curl` ไปที่ `localhost`
+- [x] RPT-REQ-020: ไม่มี dependency ใหม่ (มี test) ส่วน hostname ของ Flood Watch ไม่ได้เขียน test grep เพราะ test จะต้องมี hostname นั้นเอง
+- [x] เกณฑ์ความรุนแรงระดับ 3 เริ่มที่ 25 ซม. (เดิม 30) แก้ spec, intent และโค้ดพร้อมกัน
 
 ---
 
@@ -133,8 +134,8 @@
 ## เรื่องที่ยังไม่แน่ใจ
 
 - [ ] **404 ของ GET**: `GET /districts/atlantis` ตอนได้ 404 ต้องมี `notice` และ `reportNotice` ไหม (RPT-REQ-011 ไม่ได้บอกชัด) แผนนี้คงรูปแบบเดิมไว้ไปก่อน
-- [ ] **ก่อนมีการรวมรายงานซ้ำ**: ขั้น 1–7 ยังไม่รวมรายงานซ้ำ test จึงต้องไม่ผูกกับพฤติกรรม "ส่งซ้ำแล้วแยกรายการ"
-- [ ] **`receivedAt` ที่ใช้เรียงใน RPT-REQ-010**: หมายถึงของการส่งล่าสุดในกลุ่ม ซึ่งจะมีความหมายจริงตอนทำ RPT-REQ-012
+- [x] **ก่อนมีการรวมรายงานซ้ำ**: ทำ RPT-REQ-012 แล้ว ไม่ต้องห่วงข้อนี้อีก
+- [ ] **`receivedAt` ที่ใช้เรียงใน RPT-REQ-010**: โค้ดใช้ `receivedAt` ล่าสุดของการส่งที่ยังไม่หมดอายุ รอเจ้าของ spec ยืนยัน
 
 ## Verification
 

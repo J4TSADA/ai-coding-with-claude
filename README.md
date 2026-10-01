@@ -30,7 +30,14 @@ npm run dev     # เปิด server ที่ http://localhost:3000
 ```bash
 curl localhost:3000/districts
 curl localhost:3000/districts/lat-phrao
+
+# ส่งรายงานน้ำท่วม (ยิงที่ localhost เท่านั้น ห้ามยิงไประบบจริง)
+curl -X POST localhost:3000/districts/lat-phrao/reports \
+  -H "content-type: application/json" \
+  -d '{"landmark":"หน้าปากซอยลาดพร้าว 71","depthCm":35,"seenAt":"2026-09-30T19:00:00+07:00"}'
 ```
+
+`seenAt` ต้องไม่อยู่ในอนาคตและไม่เก่ากว่า 6 ชั่วโมง ถ้าลองตอนนี้ให้เปลี่ยนเป็นเวลาปัจจุบัน
 
 ## มีอะไรใน repo
 
@@ -41,6 +48,8 @@ curl localhost:3000/districts/lat-phrao
 | `data/stations.json` | ระดับน้ำสมมติที่บันทึกไว้ ไม่ใช่ค่าจริง |
 | `src/time.ts` | แสดงเวลาเป็นเวลากรุงเทพฯ |
 | `src/app.ts` | routing ของ API แยกจาก `node:http` เพื่อให้ test ง่าย |
+| `src/reports.ts` | รายงานน้ำท่วมจากผู้ใช้: ตรวจข้อมูล ระดับความรุนแรง รวมรายงานซ้ำ และหมดอายุ (เก็บในหน่วยความจำ) |
+| `src/rate-limit.ts` | จำกัด 5 รายงานต่อ 10 นาทีต่อ IP |
 | `src/server.ts` | HTTP server |
 | `tests/` | test ด้วย vitest |
 

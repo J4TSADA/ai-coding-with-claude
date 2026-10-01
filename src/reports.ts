@@ -69,7 +69,10 @@ function parseSeenAt(raw: string): Date | null {
   }
 
   // Read the calendar date back to reject days that do not exist, e.g. 2026-02-30.
-  const local = new Date(Date.UTC(year, month - 1, day, hour, minute, second, ms))
+  // setUTCFullYear, not Date.UTC: Date.UTC maps years 0–99 to 1900–1999.
+  const local = new Date(0)
+  local.setUTCFullYear(year, month - 1, day)
+  local.setUTCHours(hour, minute, second, ms)
   if (local.getUTCFullYear() !== year || local.getUTCMonth() !== month - 1 || local.getUTCDate() !== day) return null
   return new Date(local.getTime() - offsetMin * 60 * 1000)
 }
@@ -96,13 +99,35 @@ export function displayLandmark(raw: string): string {
   return raw.normalize("NFC").trim().replace(/\s+/g, " ")
 }
 
-/** String, no control chars (checked before trim), 1–120 graphemes after collapsing (RPT-REQ-004). */
+const thaiDigitsToArabic = (s: string) => s.replace(/[๐-๙]/g, (d) => String(d.charCodeAt(0) - 0x0e50))
+
+/** Form the RPT-REQ-005 patterns run on: NFKC, Thai digits to Arabic, lower case, no whitespace at all. */
+export function checkText(display: string): string {
+  return thaiDigitsToArabic(display.normalize("NFKC")).toLowerCase().replace(/\s+/g, "")
+}
+
+/** Rows of the RPT-REQ-005 table, in order. The first row that matches gives the code. */
+const FORBIDDEN_PATTERNS: readonly { code: ErrorCode; test: (text: string) => boolean }[] = [
+  { code: "private-address", test: (t) => t.includes("บ้านเลขที่") },
+  { code: "private-address", test: (t) => /เลขที่\d/.test(t) },
+  { code: "private-address", test: (t) => /\d+\/\d+/.test(t) },
+  { code: "private-address", test: (t) => /ห้อง\d/.test(t) },
+  { code: "private-address", test: (t) => /หมู่(ที่)?\d|(?<!ก)ม\.\d/.test(t) },
+  { code: "contact-info", test: (t) => /\d{9,}/.test(t.replace(/[-.]/g, "")) },
+  { code: "contact-info", test: (t) => t.includes("@") },
+  { code: "link", test: (t) => /http|www\.|[a-z]\.(com|net|org|co|th|ly)/.test(t) }
+]
+
+/** String, no control chars (checked before trim), 1–120 graphemes after collapsing (RPT-REQ-004), no forbidden pattern (RPT-REQ-005). */
 function checkLandmark(raw: unknown): Checked<string> {
   if (typeof raw !== "string") return { ok: false, code: "not-string" }
   if (CONTROL_CHAR.test(raw.normalize("NFC"))) return { ok: false, code: "control-char" }
   const display = displayLandmark(raw)
   if (display === "") return { ok: false, code: "empty" }
   if ([...graphemes.segment(display)].length > MAX_LANDMARK_GRAPHEMES) return { ok: false, code: "too-long" }
+  const text = checkText(display)
+  const forbidden = FORBIDDEN_PATTERNS.find((p) => p.test(text))
+  if (forbidden) return { ok: false, code: forbidden.code }
   return { ok: true, value: display }
 }
 
@@ -201,18 +226,24 @@ export type SubmitResult = { report: PublicReport; merged: boolean; submissionId
 export type ReportStore = {
   submit(districtId: string, input: ValidReportInput, now: Date, newId: () => string): SubmitResult
   listByDistrict(districtId: string, now: Date): PublicReport[]
+  /** Drops expired submissions (and their phones) and reports left empty (RPT-REQ-017). */
+  purgeExpired(now: Date): void
+  /** For tests only. */
+  submissionIds(): string[]
 }
 
 /** Lowest depth (cm) for each level, deepest first. The only place these thresholds live. */
 const SEVERITY_LEVELS: readonly { minCm: number; level: SeverityLevel; labelTh: string }[] = [
   { minCm: 50, level: "dangerous", labelTh: "อันตราย" },
-  { minCm: 30, level: "unsafe-for-small-cars", labelTh: "รถเล็กไม่ควรผ่าน" },
+  { minCm: 25, level: "unsafe-for-small-cars", labelTh: "รถเล็กไม่ควรผ่าน" },
   { minCm: 10, level: "hard-for-small-cars", labelTh: "รถเล็กผ่านลำบาก" },
   { minCm: 0, level: "wet", labelTh: "ถนนเปียก" }
 ]
 
+/** Throws on a depth validation should have rejected, instead of quietly calling it "wet". */
 export function severityOf(depthCm: number): Severity {
-  const match = SEVERITY_LEVELS.find((s) => depthCm >= s.minCm) ?? SEVERITY_LEVELS[SEVERITY_LEVELS.length - 1]!
+  const match = Number.isInteger(depthCm) && depthCm <= MAX_DEPTH_CM ? SEVERITY_LEVELS.find((s) => depthCm >= s.minCm) : undefined
+  if (!match) throw new RangeError(`depthCm must be an integer 0–${MAX_DEPTH_CM}`)
   return { level: match.level, labelTh: match.labelTh }
 }
 
@@ -220,10 +251,7 @@ export const MERGE_WINDOW_MS = 60 * 60 * 1000
 
 /** Key used to match duplicate landmarks: NFKC, Thai digits to Arabic, lower case (RPT-REQ-012). */
 export function landmarkKey(display: string): string {
-  return display
-    .normalize("NFKC")
-    .replace(/[๐-๙]/g, (d) => String(d.charCodeAt(0) - 0x0e50))
-    .toLowerCase()
+  return thaiDigitsToArabic(display.normalize("NFKC")).toLowerCase()
 }
 
 /** Expired means more than 6 h old; exactly 6 h is still live (RPT-REQ-013). */
@@ -300,6 +328,8 @@ export function createReportStore(): ReportStore {
 
   return {
     submit(districtId, input, now, newId) {
+      // validateReport rejects these; a direct caller must not create a report with no live submission.
+      if (now.getTime() - input.seenAt.getTime() > MAX_SEEN_AGE_MS) throw new RangeError("seenAt is already expired")
       const key = landmarkKey(input.landmark)
       const target = findMergeTarget(districtId, key, input.seenAt, now)
       const group: ReportGroup = target?.group ?? {
@@ -329,6 +359,17 @@ export function createReportStore(): ReportStore {
         .filter((lg) => lg.subs.length > 0)
         .sort(compareLive)
         .map(toPublic)
+    },
+
+    purgeExpired(now) {
+      for (const g of groups) g.submissions = g.submissions.filter((s) => isLive(s, now))
+      const kept = groups.filter((g) => g.submissions.length > 0)
+      groups.length = 0
+      groups.push(...kept)
+    },
+
+    submissionIds() {
+      return groups.flatMap((g) => g.submissions.map((s) => s.id))
     }
   }
 }
