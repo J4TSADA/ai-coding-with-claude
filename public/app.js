@@ -299,9 +299,9 @@
    * Glyph folders on disk have no spaces ("noto-sans-regular"), but MapLibre asks for the font stack
    * name ("Noto%20Sans%20Regular"). Static hosting serves files as they are, so rewrite the URL here.
    */
-  function transformRequest(url, resourceType) {
-    if (resourceType !== "Glyphs") return { url }
-    return { url: url.replace(/\/glyphs\/Noto%20Sans%20(Regular|Medium)\//, (_m, face) => `/glyphs/noto-sans-${face.toLowerCase()}/`) }
+  function transformRequest(url) {
+    // The space may arrive raw or as %20, and resourceType is not always "Glyphs", so match the path only.
+    return { url: url.replace(/\/glyphs\/Noto(?:%20| )Sans(?:%20| )(Regular|Medium)\//, (_m, face) => `/glyphs/noto-sans-${face.toLowerCase()}/`) }
   }
 
   async function initMap() {

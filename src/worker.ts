@@ -74,12 +74,31 @@ function sliceStream(body: ReadableStream<Uint8Array>, { start, end }: ByteRange
 }
 
 /**
+ * The tiles file read once per isolate, by URL. A static file, not app state: reading all 22 MB for
+ * every tile made each request take ~20 s. Concurrent requests share one read; a failed read is retried.
+ */
+const tileCache = new Map<string, Promise<Uint8Array<ArrayBuffer>>>()
+
+function tileBytes(url: string, asset: Response): Promise<Uint8Array<ArrayBuffer>> {
+  const cached = tileCache.get(url)
+  if (cached) {
+    void asset.body?.cancel()
+    return cached
+  }
+  const read = asset.arrayBuffer().then((buf) => new Uint8Array(buf))
+  tileCache.set(url, read)
+  read.catch(() => tileCache.delete(url))
+  return read
+}
+
+/**
  * The map tiles file (ADR 0001) needs HTTP Range requests, which Workers Static Assets answers with
  * the whole file, so this worker cuts the range itself (wrangler.jsonc `run_worker_first`).
  */
 async function serveTiles(request: Request, env: Env): Promise<Response> {
-  const asset = await env.ASSETS.fetch(new Request(request.url))
   const rangeHeader = request.headers.get("range")
+  const cached = rangeHeader === null ? undefined : tileCache.get(request.url)
+  const asset = cached ? new Response(await cached) : await env.ASSETS.fetch(new Request(request.url))
   if (asset.status !== 200 || !asset.body || rangeHeader === null) return asset
   const headers = { "content-type": "application/octet-stream", "accept-ranges": "bytes", "x-content-type-options": "nosniff" }
   const partial = (body: BodyInit, range: ByteRange, size: number) =>
@@ -99,7 +118,7 @@ async function serveTiles(request: Request, env: Env): Promise<Response> {
     }
     return partial(sliceStream(asset.body, range), range, length)
   }
-  const bytes = new Uint8Array(await asset.arrayBuffer())
+  const bytes = await tileBytes(request.url, asset)
   const range = parseRange(rangeHeader, bytes.length)
   return range ? partial(bytes.slice(range.start, range.end + 1), range, bytes.length) : notSatisfiable(bytes.length)
 }
